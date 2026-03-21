@@ -1,0 +1,1339 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI オーディオブックプレイヤー</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        /* カスタムスクロールバー */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+        
+        /* 読み上げ時のトランジション */
+        .sentence-span { transition: all 0.2s ease-in-out; }
+        
+        /* ローダー */
+        .loader {
+            border: 3px solid #f3f3f3; border-top: 3px solid #3b82f6;
+            border-radius: 50%; width: 24px; height: 24px; animation: spin 1s linear infinite;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        
+        /* 隠しクラス */
+        .hidden { display: none !important; }
+
+        /* 縦書きモード用 */
+        .writing-mode-vertical { 
+            writing-mode: vertical-rl; 
+            text-orientation: upright; 
+            overflow-x: auto; 
+            overflow-y: hidden; 
+            height: 100%; 
+            padding: 2rem; 
+        }
+        .writing-mode-vertical #text-content { 
+            display: block; 
+            height: 100%; 
+            min-height: 80vh; 
+            padding-top: 0; 
+        }
+        .writing-mode-vertical .sentence-span { 
+            display: inline-block; 
+            margin-right: 0.5rem; 
+            margin-bottom: 0; 
+        }
+
+        /* フォント設定 */
+        .font-serif-custom {
+            font-family: "Yu Mincho", "Hiragino Mincho ProN", "BIZ UDPMincho", serif;
+            line-height: 1.8;
+        }
+        
+        :root { --bg: #ffffff; --text: #1e293b; --text-sub: #475569; --panel: #ffffff; --border: #e2e8f0; --accent: #3b82f6; }
+        .sepia { --bg: #fdf6e3; --text: #5f4b32; --text-sub: #7a6a54; --panel: #f4eccc; --border: #e6dcc0; --accent: #b38600; }
+        .dark { --bg: #0f172a; --text: #f1f5f9; --text-sub: #cbd5e1; --panel: #1e293b; --border: #334155; --accent: #60a5fa; }
+        body { background-color: var(--bg); color: var(--text); }
+        /* テーマ対応のためのTailwindクラス上書き */
+        .bg-white { background-color: var(--panel) !important; }
+        .bg-slate-50 { background-color: var(--bg) !important; }
+        .bg-slate-100 { background-color: var(--border) !important; }
+        .border-slate-200, .border-slate-300 { border-color: var(--border) !important; }
+        .text-slate-800, .text-slate-700 { color: var(--text) !important; }
+        .text-slate-500 { color: var(--text-sub) !important; }
+        input, textarea, select { background-color: var(--bg) !important; color: var(--text) !important; border-color: var(--border) !important; }
+        .accent-blue-600 { accent-color: var(--accent) !important; }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 h-screen flex overflow-hidden font-sans text-sm md:text-base dark:bg-slate-900 dark:text-slate-100">
+
+    <!-- サイドバー: 本のリスト -->
+    <aside id="sidebar" class="w-64 bg-white border-r border-slate-200 flex flex-col z-20 transition-transform transform -translate-x-full md:translate-x-0 absolute md:relative h-full">
+        <div class="p-4 border-b border-slate-200 flex justify-between items-center bg-slate-100">
+            <h1 class="font-bold text-lg flex items-center gap-2 text-slate-700">
+                <i data-lucide="headphones" class="w-5 h-5 text-blue-600"></i> AI AudioBook
+            </h1>
+            <button id="close-sidebar-btn" class="md:hidden p-1 hover:bg-slate-200 rounded">
+                <i data-lucide="x" class="w-5 h-5"></i>
+            </button>
+        </div>
+        <div class="p-4">
+            <button onclick="ui.openModal('add-book-modal')" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded shadow flex justify-center items-center gap-2 transition-colors">
+                <i data-lucide="plus-circle" class="w-4 h-4"></i> 新しい本を追加
+            </button>
+        </div>
+        <div class="flex-1 overflow-y-auto px-2 pb-4" id="book-list-container">
+            <!-- 本のリストがここにレンダリングされる -->
+        </div>
+    </aside>
+
+    <!-- メインコンテンツ -->
+    <main class="flex-1 flex flex-col relative w-full overflow-hidden">
+        <!-- トップヘッダ -->
+        <header class="h-14 bg-white border-b border-slate-200 flex items-center justify-between px-4 shrink-0">
+            <div class="flex items-center gap-3 truncate">
+                <button id="open-sidebar-btn" class="md:hidden p-2 -ml-2 hover:bg-slate-100 rounded text-slate-600">
+                    <i data-lucide="menu" class="w-5 h-5"></i>
+                </button>
+                <h2 id="header-book-title" class="font-bold text-slate-700 truncate text-lg">本を選択してください</h2>
+            </div>
+            <div class="flex items-center gap-1">
+                <button onclick="ui.toggleRightPanel('chat')" class="panel-btn p-2 rounded hover:bg-slate-100 text-slate-500 transition-colors" data-panel="chat" title="AIチャット">
+                    <i data-lucide="message-square-text" class="w-5 h-5"></i>
+                </button>
+                <button onclick="ui.toggleRightPanel('notes')" class="panel-btn p-2 rounded hover:bg-slate-100 text-slate-500 transition-colors" data-panel="notes" title="メモ一覧">
+                    <i data-lucide="notebook-pen" class="w-5 h-5"></i>
+                </button>
+                <button onclick="ui.toggleSearch()" class="p-2 rounded hover:bg-slate-100 text-slate-500 transition-colors" title="検索">
+                    <i data-lucide="search" class="w-5 h-5"></i>
+                </button>
+                <button id="theme-btn" onclick="ui.toggleTheme()" class="p-2 rounded hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-500 transition-colors" title="テーマ切替">
+                    <i data-lucide="sun" id="icon-light" class="w-5 h-5"></i>
+                    <i data-lucide="book-open" id="icon-sepia" class="w-5 h-5 hidden"></i>
+                    <i data-lucide="moon" id="icon-dark" class="w-5 h-5 hidden"></i>
+                </button>
+                <button onclick="ui.toggleRightPanel('settings')" class="panel-btn p-2 rounded hover:bg-slate-100 text-slate-500 transition-colors" data-panel="settings" title="設定">
+                    <i data-lucide="settings" class="w-5 h-5"></i>
+                </button>
+            </div>
+            <!-- 検索パネル -->
+            <div id="search-panel" class="absolute top-14 left-0 w-full bg-white border-b border-slate-200 p-2 hidden flex items-center gap-2 z-30">
+                <input type="text" id="search-input" class="flex-1 border border-slate-300 rounded px-3 py-1.5 text-sm" placeholder="検索..." onkeyup="if(event.key==='Enter') ui.search()">
+                <button onclick="ui.search()" class="text-sm bg-slate-100 px-3 py-1.5 rounded hover:bg-slate-200">検索</button>
+            </div>
+        </header>
+
+        <!-- テキスト表示エリア -->
+        <div id="text-view-container" class="flex-1 overflow-y-auto p-4 md:p-8 relative scroll-smooth bg-slate-50 shadow-inner">
+            <div id="text-content" class="max-w-3xl mx-auto pb-32">
+                <!-- テキストがここにレンダリングされる -->
+                <div class="h-full flex items-center justify-center text-slate-400 mt-20">
+                    左のメニューから本を選択するか、新しく追加してください。
+                </div>
+            </div>
+        </div>
+
+        <!-- プレイヤーコントロール -->
+        <div class="bg-white border-t border-slate-200 px-4 py-3 shrink-0 flex flex-col gap-2">
+            <!-- プログレスバー -->
+            <div class="flex items-center gap-3">
+                <span id="progress-text" class="text-xs text-slate-500 w-12 text-right">0%</span>
+                <input type="range" id="progress-slider" min="0" max="100" value="0" class="flex-1 h-2 bg-slate-200 rounded-full cursor-pointer accent-blue-600 appearance-none" oninput="player.seekBySlider(this.value)">
+            </div>
+            
+            <div class="flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                    <select id="speed-select" class="text-xs border border-slate-300 rounded p-1 bg-slate-50 outline-none" onchange="player.setRate(this.value)">
+                        <option value="0.5">0.5x</option>
+                        <option value="0.8">0.8x</option>
+                        <option value="1.0" selected>1.0x</option>
+                        <option value="1.2">1.2x</option>
+                        <option value="1.5">1.5x</option>
+                        <option value="2.0">2.0x</option>
+                    </select>
+                </div>
+                
+                <div class="flex items-center gap-4">
+                    <button onclick="player.prev()" class="p-2 text-slate-600 hover:text-blue-600 hover:bg-blue-50 rounded-full transition-colors disabled:opacity-50" id="btn-prev">
+                        <i data-lucide="skip-back" class="w-6 h-6 fill-current"></i>
+                    </button>
+                    <button onclick="player.togglePlay()" class="p-3 bg-blue-600 text-white hover:bg-blue-700 rounded-full shadow-md hover:shadow-lg transition-all transform hover:scale-105" id="btn-play">
+                        <i data-lucide="play" class="w-7 h-7 fill-current" id="icon-play"></i>
+                        <i data-lucide="pause" class="w-7 h-7 fill-current hidden" id="icon-pause"></i>
+                    </button>
+                    <button onclick="player.next()" class="p-2 text-slate-600 hover:text-blue-600 hover:bg-blue-50 rounded-full transition-colors disabled:opacity-50" id="btn-next">
+                        <i data-lucide="skip-forward" class="w-6 h-6 fill-current"></i>
+                    </button>
+                </div>
+                
+                <div class="flex items-center">
+                    <button onclick="ui.openModal('add-note-modal')" class="flex items-center gap-1 text-sm bg-amber-100 text-amber-800 hover:bg-amber-200 py-1.5 px-3 rounded shadow-sm transition-colors border border-amber-200 font-medium">
+                        <i data-lucide="pen-line" class="w-4 h-4"></i> メモ
+                    </button>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- 右パネル (チャット、メモ、設定) -->
+    <aside id="right-panel" class="w-80 md:w-96 bg-white border-l border-slate-200 flex flex-col absolute md:relative right-0 h-full z-10 transition-transform transform translate-x-full md:translate-x-0 hidden shadow-xl md:shadow-none border-t md:border-t-0">
+        <!-- パネルヘッダ -->
+        <div class="h-14 border-b border-slate-200 flex items-center justify-between px-4 bg-slate-50 shrink-0">
+            <h3 id="panel-title" class="font-bold text-slate-700 flex items-center gap-2">
+                <i data-lucide="info" class="w-4 h-4"></i> パネル
+            </h3>
+            <button onclick="ui.closeRightPanel()" class="p-1 hover:bg-slate-200 rounded text-slate-500 md:hidden">
+                <i data-lucide="x" class="w-5 h-5"></i>
+            </button>
+        </div>
+
+        <!-- パネルコンテンツ: チャット -->
+        <div id="panel-chat" class="flex-1 flex flex-col hidden overflow-hidden">
+            <div class="p-3 border-b border-slate-100 bg-blue-50 flex items-center justify-between text-xs shrink-0">
+                <label class="flex items-center gap-2 cursor-pointer text-slate-700 font-medium" title="現在読んでいる場所までをAIの知識とします">
+                    <input type="checkbox" id="prevent-spoilers" checked class="w-4 h-4 text-blue-600 rounded" onchange="state.preventSpoilers = this.checked">
+                    ネタバレ防止
+                </label>
+                <span class="text-slate-500" title="現在のモデル" id="chat-model-label">Flash Lite</span>
+            </div>
+            <div id="chat-messages" class="flex-1 overflow-y-auto p-4 space-y-4 bg-slate-50">
+                <div class="text-center text-xs text-slate-400 my-4">AIアシスタントに要約や質問ができます</div>
+                <!-- メッセージがここに入る -->
+            </div>
+            <div class="p-3 border-t border-slate-200 bg-white shrink-0">
+                <form id="chat-form" class="flex gap-2" onsubmit="ai.submitChat(event)">
+                    <input type="text" id="chat-input" class="flex-1 border border-slate-300 rounded-full px-4 py-2 text-sm focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500" placeholder="質問や要約をリクエスト...">
+                    <button type="submit" id="chat-submit-btn" class="bg-blue-600 text-white p-2 rounded-full hover:bg-blue-700 transition-colors flex items-center justify-center min-w-[36px]">
+                        <i data-lucide="send" class="w-4 h-4"></i>
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        <!-- パネルコンテンツ: メモ -->
+        <div id="panel-notes" class="flex-1 flex flex-col hidden overflow-hidden">
+            <div id="notes-list" class="flex-1 overflow-y-auto p-4 space-y-3 bg-slate-50">
+                <!-- メモ一覧がここに入る -->
+            </div>
+        </div>
+
+        <!-- パネルコンテンツ: 設定 -->
+        <div id="panel-settings" class="flex-1 flex flex-col hidden overflow-y-auto p-5 bg-slate-50">
+            <div class="space-y-6">
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-1">Gemini API キー</label>
+                    <input type="password" id="setting-api-key" class="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500" placeholder="AI機能を利用するには入力">
+                    <p class="text-xs text-slate-500 mt-1">※ブラウザ内にのみ保存されます。Canvas環境では自動注入を優先します。</p>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-1">使用モデル</label>
+                    <input type="text" id="setting-model" class="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500">
+                    <p class="text-xs text-slate-500 mt-1">デフォルトは gemini-3.1-flash-lite-preview です。</p>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-1">読み上げ音声</label>
+                    <select id="voice-select" class="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500 bg-white"></select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-2">表示レイアウト</label>
+                    <div class="flex items-center gap-4">
+                        <label class="flex items-center gap-2 cursor-pointer">
+                            <input type="radio" name="layout-type" value="horizontal" checked class="text-blue-600" onchange="app.updateLayout()"> 横書き
+                        </label>
+                        <label class="flex items-center gap-2 cursor-pointer">
+                            <input type="radio" name="layout-type" value="vertical" class="text-blue-600" onchange="app.updateLayout()"> 縦書き
+                        </label>
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-2">表示フォント</label>
+                    <div class="flex items-center gap-4">
+                        <label class="flex items-center gap-2 cursor-pointer">
+                            <input type="radio" name="font-type" value="sans" checked class="text-blue-600" onchange="app.updateFont()"> ゴシック
+                        </label>
+                        <label class="flex items-center gap-2 cursor-pointer">
+                            <input type="radio" name="font-type" value="serif" class="text-blue-600" onchange="app.updateFont()"> 明朝
+                        </label>
+                    </div>
+                </div>
+                <button onclick="app.saveSettings()" class="w-full bg-slate-800 text-white rounded py-2 hover:bg-slate-700 transition-colors font-medium text-sm shadow">
+                    設定を保存
+                </button>
+                
+                <hr class="border-slate-200">
+                
+                <div>
+                    <h4 class="text-sm font-medium text-slate-700 mb-2">ストレージ管理</h4>
+                    <button onclick="app.clearDatabase()" class="w-full bg-red-50 text-red-600 border border-red-200 rounded py-2 hover:bg-red-100 transition-colors text-sm font-medium">
+                        全てのデータを削除
+                    </button>
+                    <p class="text-xs text-red-400 mt-1 text-center">※復元できません</p>
+                </div>
+            </div>
+        </div>
+    </aside>
+
+    <!-- モーダル: 本の追加 -->
+    <div id="add-book-modal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center hidden opacity-0 transition-opacity">
+        <div class="bg-white rounded-lg shadow-xl w-full max-w-2xl mx-4 flex flex-col max-h-[90vh] transform scale-95 transition-transform" id="add-book-modal-content">
+            <div class="p-4 border-b border-slate-200 flex justify-between items-center bg-slate-50 rounded-t-lg">
+                <h3 class="font-bold text-lg text-slate-800">新しいテキストをオーディオブック化</h3>
+                <button onclick="ui.closeModal('add-book-modal')" class="text-slate-400 hover:text-slate-600"><i data-lucide="x" class="w-5 h-5"></i></button>
+            </div>
+            <div class="p-5 flex-1 overflow-y-auto space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-1">タイトル</label>
+                    <input type="text" id="new-book-title" class="w-full border border-slate-300 rounded px-3 py-2 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500" placeholder="例：吾輩は猫である">
+                </div>
+                <div class="flex-1 flex flex-col h-64">
+                    <label class="block text-sm font-medium text-slate-700 mb-1">テキスト本文 (長文も可)</label>
+                    <textarea id="new-book-text" class="w-full flex-1 border border-slate-300 rounded px-3 py-2 resize-none focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 text-sm leading-relaxed" placeholder="ここにテキストを貼り付けてください..."></textarea>
+                </div>
+                <div id="processing-indicator" class="hidden flex items-center justify-center gap-3 text-blue-600 p-4 bg-blue-50 rounded border border-blue-100">
+                    <div class="loader"></div>
+                    <span class="font-medium text-sm">テキストを解析・分割しています。長文の場合は数秒かかります...</span>
+                </div>
+            </div>
+            <div class="p-4 border-t border-slate-200 bg-slate-50 rounded-b-lg flex justify-end gap-2">
+                <button onclick="ui.closeModal('add-book-modal')" class="px-4 py-2 rounded text-slate-600 hover:bg-slate-200 transition-colors text-sm font-medium">キャンセル</button>
+                <button onclick="app.processNewBook()" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors shadow-sm text-sm font-medium flex items-center gap-2">
+                    <i data-lucide="save" class="w-4 h-4"></i> 保存して追加
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- モーダル: メモの追加 -->
+    <div id="add-note-modal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center hidden opacity-0 transition-opacity">
+        <div class="bg-white rounded-lg shadow-xl w-full max-w-lg mx-4 flex flex-col transform scale-95 transition-transform" id="add-note-modal-content">
+            <div class="p-4 border-b border-slate-200 flex justify-between items-center bg-amber-50 rounded-t-lg">
+                <h3 class="font-bold text-lg text-amber-900 flex items-center gap-2">
+                    <i data-lucide="pen-line" class="w-5 h-5 text-amber-600"></i> メモを追加
+                </h3>
+                <button onclick="ui.closeModal('add-note-modal')" class="text-slate-400 hover:text-slate-600"><i data-lucide="x" class="w-5 h-5"></i></button>
+            </div>
+            <div class="p-5 space-y-4">
+                <div class="bg-slate-50 p-3 rounded border border-slate-200 text-sm text-slate-600 relative">
+                    <div class="absolute -top-2 -left-2 bg-slate-200 text-slate-500 text-[10px] px-1.5 py-0.5 rounded shadow-sm border border-slate-300">対象の文脈</div>
+                    <p id="note-context-preview" class="italic mt-1 line-clamp-3">...</p>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-1">メモ内容</label>
+                    <textarea id="new-note-text" class="w-full h-32 border border-slate-300 rounded px-3 py-2 resize-none focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500 text-sm" placeholder="このシーンの感想や気になったことを記録..."></textarea>
+                </div>
+            </div>
+            <div class="p-4 border-t border-slate-200 bg-slate-50 rounded-b-lg flex justify-end gap-2">
+                <button onclick="ui.closeModal('add-note-modal')" class="px-4 py-2 rounded text-slate-600 hover:bg-slate-200 transition-colors text-sm font-medium">キャンセル</button>
+                <button onclick="app.saveNote()" class="px-4 py-2 bg-amber-600 text-white rounded hover:bg-amber-700 transition-colors shadow-sm text-sm font-medium flex items-center gap-2">
+                    <i data-lucide="check" class="w-4 h-4"></i> 記録する
+                </button>
+            </div>
+        </div>
+    </div>
+
+<script>
+    // ==========================================
+    // 環境変数とグローバル状態
+    // ==========================================
+    const apiKey = ""; // Canvas環境変数が注入される場所
+    
+    const state = {
+        books: [],
+        currentBook: null,
+        notes: [],
+        activePanel: null,
+        preventSpoilers: true,
+        settings: {
+            apiKey: localStorage.getItem('ab_api_key') || apiKey,
+            model: localStorage.getItem('ab_model') || "gemini-3.1-flash-lite-preview",
+            font: localStorage.getItem('ab_font') || 'sans'
+        },
+        mediaSessionInitialized: false
+    };
+
+    // ==========================================
+    // データベース管理 (IndexedDB)
+    // ==========================================
+    const dbManager = {
+        dbName: 'AudioBookDB',
+        version: 1,
+        db: null,
+
+        async init() {
+            return new Promise((resolve, reject) => {
+                const request = indexedDB.open(this.dbName, this.version);
+                
+                request.onupgradeneeded = (e) => {
+                    const db = e.target.result;
+                    if (!db.objectStoreNames.contains('books')) {
+                        db.createObjectStore('books', { keyPath: 'id' });
+                    }
+                    if (!db.objectStoreNames.contains('notes')) {
+                        const notesStore = db.createObjectStore('notes', { keyPath: 'id' });
+                        notesStore.createIndex('bookId', 'bookId', { unique: false });
+                    }
+                };
+
+                request.onsuccess = (e) => {
+                    this.db = e.target.result;
+                    resolve();
+                };
+                request.onerror = (e) => reject(e.target.error);
+            });
+        },
+
+        async getBooks() {
+            return new Promise((resolve) => {
+                const tx = this.db.transaction('books', 'readonly');
+                const store = tx.objectStore('books');
+                const request = store.getAll();
+                request.onsuccess = () => {
+                    // 更新日の降順でソート
+                    const books = request.result.sort((a, b) => b.updatedAt - a.updatedAt);
+                    resolve(books);
+                };
+            });
+        },
+
+        async saveBook(book) {
+            book.updatedAt = Date.now();
+            return new Promise((resolve) => {
+                const tx = this.db.transaction('books', 'readwrite');
+                tx.objectStore('books').put(book);
+                tx.oncomplete = () => resolve(book);
+            });
+        },
+
+        async deleteBook(id) {
+            return new Promise((resolve) => {
+                const tx = this.db.transaction(['books', 'notes'], 'readwrite');
+                tx.objectStore('books').delete(id);
+                // 関連ノートも削除
+                const notesStore = tx.objectStore('notes');
+                const index = notesStore.index('bookId');
+                const request = index.getAllKeys(id);
+                request.onsuccess = () => {
+                    request.result.forEach(noteId => notesStore.delete(noteId));
+                };
+                tx.oncomplete = () => resolve();
+            });
+        },
+
+        async getNotes(bookId) {
+            return new Promise((resolve) => {
+                const tx = this.db.transaction('notes', 'readonly');
+                const index = tx.objectStore('notes').index('bookId');
+                const request = index.getAll(bookId);
+                request.onsuccess = () => {
+                    // 作成順（インデックス順）でソート
+                    const notes = request.result.sort((a, b) => a.sentenceIndex - b.sentenceIndex);
+                    resolve(notes);
+                };
+            });
+        },
+
+        async saveNote(note) {
+            return new Promise((resolve) => {
+                const tx = this.db.transaction('notes', 'readwrite');
+                tx.objectStore('notes').put(note);
+                tx.oncomplete = () => resolve(note);
+            });
+        },
+        
+        async clearAll() {
+             return new Promise((resolve) => {
+                const tx = this.db.transaction(['books', 'notes'], 'readwrite');
+                tx.objectStore('books').clear();
+                tx.objectStore('notes').clear();
+                tx.oncomplete = () => resolve();
+            });
+        }
+    };
+
+    // ==========================================
+    // オーディオプレイヤー制御
+    // ==========================================
+    const player = {
+        synth: window.speechSynthesis,
+        utterance: null,
+        isPlaying: false,
+        rate: 1.0,
+        // バックグラウンド再生維持のための無音オーディオ
+        silentAudio: new Audio('data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA'),
+
+        togglePlay() {
+            if (!state.currentBook) {
+                alert("本を選択するか追加してください。");
+                return;
+            }
+            if (this.isPlaying) {
+                this.pause();
+            } else {
+                this.play();
+            }
+        },
+
+        play() {
+            if (!state.currentBook) return;
+            const book = state.currentBook;
+            if (book.currentIndex >= book.sentences.length) {
+                // 最後まで行っていたら最初から
+                book.currentIndex = 0;
+            }
+            
+            this.isPlaying = true;
+            
+            // バックグラウンド維持のため無音オーディオをループ再生
+            this.silentAudio.loop = true;
+            this.silentAudio.play().catch(e => console.log("無音オーディオの再生に失敗:", e));
+
+            // スマホやイヤホンに「再生中」であることを明示的に伝える
+            if ('mediaSession' in navigator) {
+                navigator.mediaSession.playbackState = 'playing';
+            }
+
+            ui.updatePlayerControls();
+            this.speakCurrent();
+        },
+
+        pause() {
+            this.isPlaying = false;
+            this.synth.cancel();
+            
+            // 無音オーディオも停止
+            this.silentAudio.pause();
+
+            // スマホやイヤホンに「停止中」であることを明示的に伝える
+            if ('mediaSession' in navigator) {
+                navigator.mediaSession.playbackState = 'paused';
+            }
+
+            ui.updatePlayerControls();
+        },
+
+        speakCurrent() {
+            if (!this.isPlaying) return;
+            this.synth.cancel(); // 念のためキャンセル
+
+            const book = state.currentBook;
+            const text = book.sentences[book.currentIndex];
+
+            // 空白や改行のみの要素はスキップ
+            if (!text || !text.trim().replace(/[\n\r]/g, '')) {
+                this.advanceToNext();
+                return;
+            }
+
+            this.utterance = new SpeechSynthesisUtterance(text);
+            this.utterance.lang = 'ja-JP';
+            this.utterance.rate = this.rate;
+            
+            // 音声設定の適用
+            const voiceName = localStorage.getItem('ab_voice_name');
+            const voices = this.synth.getVoices();
+            const selectedVoice = voices.find(v => v.name === voiceName || v.voiceURI === voiceName);
+            if (selectedVoice) {
+                this.utterance.voice = selectedVoice;
+            }
+
+            this.utterance.onend = (e) => {
+                // キャンセルによる終了でなく、自然終了の場合のみ次へ
+                if (this.isPlaying && e.type === 'end') {
+                    this.advanceToNext();
+                }
+            };
+
+            this.utterance.onerror = (e) => {
+                console.warn("Speech Error or Canceled:", e);
+                // 意図的なキャンセルでなければ停止
+                if (this.isPlaying) {
+                    this.pause();
+                }
+            };
+
+            // 読み上げ前にUI更新してスクロールさせる
+            ui.renderTextWindow();
+            
+            // バグ回避のための遅延発火 (Safariなどで連続再生が止まる問題への対策)
+            setTimeout(() => {
+                if(this.isPlaying) this.synth.speak(this.utterance);
+            }, 50);
+        },
+
+        advanceToNext() {
+            const book = state.currentBook;
+            if (book.currentIndex < book.sentences.length - 1) {
+                book.currentIndex++;
+                dbManager.saveBook(book); // 進捗保存
+                ui.updateProgressBar();
+                this.speakCurrent(); // 次を再生
+            } else {
+                this.isPlaying = false;
+                ui.updatePlayerControls();
+            }
+        },
+
+        next() {
+            if (!state.currentBook) return;
+            if (state.currentBook.currentIndex < state.currentBook.sentences.length - 1) {
+                state.currentBook.currentIndex++;
+                dbManager.saveBook(state.currentBook);
+                ui.updateProgressBar();
+                ui.renderTextWindow();
+                if (this.isPlaying) this.speakCurrent();
+            }
+        },
+
+        prev() {
+            if (!state.currentBook) return;
+            if (state.currentBook.currentIndex > 0) {
+                state.currentBook.currentIndex--;
+                dbManager.saveBook(state.currentBook);
+                ui.updateProgressBar();
+                ui.renderTextWindow();
+                if (this.isPlaying) this.speakCurrent();
+            }
+        },
+
+        jumpTo(index) {
+            if (!state.currentBook) return;
+            if (index >= 0 && index < state.currentBook.sentences.length) {
+                state.currentBook.currentIndex = index;
+                dbManager.saveBook(state.currentBook);
+                ui.updateProgressBar();
+                ui.renderTextWindow();
+                if (this.isPlaying) this.speakCurrent();
+            }
+        },
+
+        seekBySlider(val) {
+            if (!state.currentBook) return;
+            const total = state.currentBook.sentences.length;
+            const targetIndex = Math.floor(total * (val / 100));
+            state.currentBook.currentIndex = Math.min(Math.max(0, targetIndex), total - 1);
+            ui.updateProgressBar();
+            ui.renderTextWindow();
+            
+            // シーク中に再生中だった場合は、シーク先のテキストから読み上げを再開
+            if (this.isPlaying) {
+                this.speakCurrent();
+            }
+        },
+
+        setRate(rateStr) {
+            this.rate = parseFloat(rateStr);
+            if (this.isPlaying) {
+                this.speakCurrent(); // 現在の文から速度を適用して再開
+            }
+        },
+        
+        speakFreeText(text) {
+             const prevPlaying = this.isPlaying;
+             this.pause(); // 本の再生を停止
+             
+             const u = new SpeechSynthesisUtterance(text);
+             u.lang = 'ja-JP';
+             u.rate = this.rate;
+             
+             // 音声設定の適用
+             const voiceName = localStorage.getItem('ab_voice_name');
+             const voices = this.synth.getVoices();
+             const selectedVoice = voices.find(v => v.name === voiceName || v.voiceURI === voiceName);
+             if (selectedVoice) u.voice = selectedVoice;
+             
+             this.synth.speak(u);
+        }
+    };
+
+    // ==========================================
+    // AI (Gemini) 通信ロジック
+    // ==========================================
+    const ai = {
+        async submitChat(e) {
+            e.preventDefault();
+            const input = document.getElementById('chat-input');
+            const text = input.value.trim();
+            if (!text || !state.currentBook) return;
+
+            const apiKeyToUse = state.settings.apiKey;
+            if (!apiKeyToUse) {
+                ui.addChatMessage("System", "AI機能を利用するには設定からGemini APIキーを入力してください。", true);
+                ui.toggleRightPanel('settings');
+                return;
+            }
+
+            // UI更新
+            input.value = '';
+            ui.addChatMessage("You", text, false);
+            const btn = document.getElementById('chat-submit-btn');
+            btn.disabled = true;
+            btn.innerHTML = '<div class="loader !w-4 !h-4 !border-2"></div>';
+
+            try {
+                const book = state.currentBook;
+                let contextText = "";
+                
+                // ネタバレ防止の制御：現在地までか、全文か
+                if (state.preventSpoilers) {
+                    contextText = book.sentences.slice(0, book.currentIndex + 1).join("");
+                } else {
+                    contextText = book.sentences.join("");
+                }
+
+                // API制限を考慮し、長すぎる場合は後ろから切り詰める（最新の文脈を優先）
+                const MAX_CHARS = 150000; 
+                if (contextText.length > MAX_CHARS) {
+                    contextText = contextText.slice(-MAX_CHARS);
+                }
+
+                const systemInstruction = `あなたはオーディオブックアプリの読書アシスタントです。ユーザーは現在「${book.title}」を読んでいます。以下のテキストは、ユーザーが${state.preventSpoilers ? "現在までに読んだ" : "読んでいる本の全"}内容です。このテキストの内容に基づいて、ユーザーの質問や要約の要求に的確に答えてください。指定されたテキスト以外の展開は推測しないでください。\n\n【コンテキストテキスト】\n${contextText}`;
+
+                const requestBody = {
+                    contents: [{ role: "user", parts: [{ text: text }] }],
+                    systemInstruction: { parts: [{ text: systemInstruction }] }
+                };
+
+                const model = state.settings.model || "gemini-3.1-flash-lite-preview";
+                const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKeyToUse}`;
+
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(requestBody)
+                });
+
+                if (!response.ok) {
+                    const errData = await response.json();
+                    throw new Error(errData.error?.message || "API通信エラー");
+                }
+
+                const data = await response.json();
+                const reply = data.candidates?.[0]?.content?.parts?.[0]?.text || "返答を生成できませんでした。";
+                
+                ui.addChatMessage("AI", reply, false);
+
+            } catch (error) {
+                console.error("AI Error:", error);
+                ui.addChatMessage("System", "エラーが発生しました: " + error.message, true);
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = '<i data-lucide="send" class="w-4 h-4"></i>';
+                lucide.createIcons();
+            }
+        }
+    };
+
+    // ==========================================
+    // UI操作とレンダリング
+    // ==========================================
+    const ui = {
+        init() {
+            lucide.createIcons();
+            this.initMediaSession();
+            
+            // サイドバーのトグル（モバイル用）
+            document.getElementById('open-sidebar-btn').addEventListener('click', () => {
+                document.getElementById('sidebar').classList.remove('-translate-x-full');
+            });
+            document.getElementById('close-sidebar-btn').addEventListener('click', () => {
+                document.getElementById('sidebar').classList.add('-translate-x-full');
+            });
+            
+            // 設定フォームの初期化
+            document.getElementById('setting-api-key').value = state.settings.apiKey;
+            document.getElementById('setting-model').value = state.settings.model;
+            document.getElementById('chat-model-label').textContent = state.settings.model.split('-').slice(1,3).join(' ');
+
+            const voiceSelect = document.getElementById('voice-select');
+            const updateVoices = () => {
+                let voices = window.speechSynthesis.getVoices();
+                let japaneseVoices = voices.filter(v => v.lang.includes('ja'));
+                
+                const targetNames = ['ja-jp-x-jab-local', 'ja-jp-x-jab-network', 'ja-jp-x-jac-local', 'ja-jp-x-jac-network'];
+                targetNames.forEach(name => {
+                    if (!japaneseVoices.find(v => v.name === name)) {
+                        japaneseVoices.push({ name: name, lang: 'ja-JP', voiceURI: name });
+                    }
+                });
+
+                const savedVoice = localStorage.getItem('ab_voice_name');
+                voiceSelect.innerHTML = japaneseVoices.map(v => 
+                    `<option value="${v.name}" ${savedVoice === v.name ? 'selected' : ''}>${v.name}</option>`
+                ).join('');
+            };
+            window.speechSynthesis.onvoiceschanged = updateVoices;
+            updateVoices();
+
+            if (localStorage.getItem('theme') === 'dark' || (!localStorage.getItem('theme') && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+                document.documentElement.classList.add('dark');
+            }
+        },
+        initMediaSession() {
+            if ('mediaSession' in navigator) {
+                navigator.mediaSession.setActionHandler('play', () => player.play());
+                navigator.mediaSession.setActionHandler('pause', () => player.pause());
+                navigator.mediaSession.setActionHandler('previoustrack', () => player.prev());
+                navigator.mediaSession.setActionHandler('nexttrack', () => player.next());
+            }
+        },
+        updateMediaSession(title) {
+            if ('mediaSession' in navigator) {
+                navigator.mediaSession.metadata = new MediaMetadata({
+                    title: title,
+                    artist: 'AI AudioBook',
+                    album: 'AI Reading'
+                });
+            }
+        },
+        toggleTheme() {
+            const themes = ['light', 'sepia', 'dark'];
+            const current = localStorage.getItem('theme') || 'light';
+            const next = themes[(themes.indexOf(current) + 1) % 3];
+            document.documentElement.classList.remove('light', 'sepia', 'dark');
+            document.documentElement.classList.add(next);
+            localStorage.setItem('theme', next);
+            this.updateThemeIcons(next);
+        },
+        updateThemeIcons(theme) {
+            document.getElementById('icon-light').classList.toggle('hidden', theme !== 'light');
+            document.getElementById('icon-sepia').classList.toggle('hidden', theme !== 'sepia');
+            document.getElementById('icon-dark').classList.toggle('hidden', theme !== 'dark');
+        },
+
+        async loadInitialData() {
+            state.books = await dbManager.getBooks();
+            this.renderBookList();
+            
+            if (state.books.length > 0) {
+                // 最も最近更新された本をロード
+                app.selectBook(state.books[0].id);
+            }
+        },
+
+        renderBookList() {
+            const container = document.getElementById('book-list-container');
+            container.innerHTML = '';
+            
+            if (state.books.length === 0) {
+                container.innerHTML = '<div class="text-slate-400 text-sm p-4 text-center">本がありません。追加してください。</div>';
+                return;
+            }
+
+            state.books.forEach(book => {
+                const isActive = state.currentBook && state.currentBook.id === book.id;
+                const progress = book.sentences.length > 0 
+                    ? Math.floor((book.currentIndex / book.sentences.length) * 100) : 0;
+                
+                const div = document.createElement('div');
+                div.className = `p-3 mb-2 rounded cursor-pointer transition-colors border-l-4 group flex justify-between items-center ${isActive ? 'bg-blue-50 border-blue-500 shadow-sm' : 'bg-white border-transparent hover:bg-slate-100 border-slate-200'}`;
+                
+                const infoDiv = document.createElement('div');
+                infoDiv.className = 'overflow-hidden flex-1';
+                infoDiv.onclick = () => app.selectBook(book.id);
+                
+                const title = document.createElement('div');
+                title.className = `font-medium truncate text-sm ${isActive ? 'text-blue-800' : 'text-slate-700'}`;
+                title.textContent = book.title;
+                
+                const progText = document.createElement('div');
+                progText.className = 'text-xs text-slate-500 mt-1 flex items-center gap-2';
+                progText.innerHTML = `<div class="w-16 h-1.5 bg-slate-200 rounded-full overflow-hidden"><div class="h-full bg-blue-400" style="width: ${progress}%"></div></div> ${progress}%`;
+                
+                infoDiv.appendChild(title);
+                infoDiv.appendChild(progText);
+                div.appendChild(infoDiv);
+                
+                // 削除ボタン
+                const delBtn = document.createElement('button');
+                delBtn.className = 'p-2 text-slate-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity rounded-full hover:bg-slate-200';
+                delBtn.innerHTML = '<i data-lucide="trash-2" class="w-4 h-4"></i>';
+                delBtn.onclick = (e) => {
+                    e.stopPropagation();
+                    if(confirm(`「${book.title}」を削除しますか？`)) app.deleteBook(book.id);
+                };
+                div.appendChild(delBtn);
+
+                container.appendChild(div);
+            });
+            lucide.createIcons();
+        },
+
+        renderTextWindow() {
+            const container = document.getElementById('text-content');
+            if (!state.currentBook) {
+                container.innerHTML = '<div class="h-full flex items-center justify-center text-slate-400 mt-20">左のメニューから本を選択するか、新しく追加してください。</div>';
+                document.getElementById('header-book-title').textContent = "本を選択してください";
+                return;
+            }
+
+            document.getElementById('header-book-title').textContent = state.currentBook.title;
+            container.innerHTML = '';
+            
+            state.currentBook.sentences.forEach((text, i) => {
+                const span = document.createElement('span');
+                span.textContent = text;
+                span.className = 'sentence-span inline-block p-1 rounded cursor-pointer transition-colors hover:bg-blue-100';
+                span.dataset.index = i;
+                span.onclick = () => player.jumpTo(i);
+
+                if (i === state.currentBook.currentIndex) {
+                    span.classList.add('bg-yellow-200', 'font-bold', 'text-slate-900', 'shadow-sm', 'id-current');
+                    span.id = 'current-sentence';
+                }
+                container.appendChild(span);
+            });
+
+            // 自動スクロール
+            const el = document.getElementById('current-sentence');
+            if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        },
+
+        updateProgressBar() {
+            if (!state.currentBook) return;
+            const book = state.currentBook;
+            const total = book.sentences.length;
+            const current = book.currentIndex;
+            const percentage = total > 0 ? (current / total) * 100 : 0;
+            
+            // スライダーの値を更新するように変更
+            const slider = document.getElementById('progress-slider');
+            if (slider) {
+                slider.value = percentage;
+            }
+            document.getElementById('progress-text').textContent = `${Math.floor(percentage)}%`;
+        },
+
+        updatePlayerControls() {
+            const playIcon = document.getElementById('icon-play');
+            const pauseIcon = document.getElementById('icon-pause');
+            
+            if (player.isPlaying) {
+                playIcon.classList.add('hidden');
+                pauseIcon.classList.remove('hidden');
+            } else {
+                playIcon.classList.remove('hidden');
+                pauseIcon.classList.add('hidden');
+            }
+        },
+
+        toggleRightPanel(panelName) {
+            const panel = document.getElementById('right-panel');
+            
+            // すでに同じパネルが開いている場合は閉じる
+            if (state.activePanel === panelName && !panel.classList.contains('hidden') && !panel.classList.contains('translate-x-full')) {
+                this.closeRightPanel();
+                return;
+            }
+
+            // 全パネルコンテンツを隠す
+            ['chat', 'notes', 'settings'].forEach(p => {
+                document.getElementById(`panel-${p}`).classList.add('hidden');
+            });
+
+            // 対象パネルを表示
+            document.getElementById(`panel-${panelName}`).classList.remove('hidden');
+            
+            // タイトル設定
+            const titles = { chat: 'AI アシスタント', notes: 'メモ一覧', settings: '設定' };
+            const icons = { chat: 'message-square-text', notes: 'notebook-pen', settings: 'settings' };
+            document.getElementById('panel-title').innerHTML = `<i data-lucide="${icons[panelName]}" class="w-4 h-4"></i> ${titles[panelName]}`;
+            
+            // パネル本体を表示
+            panel.classList.remove('hidden');
+            setTimeout(() => panel.classList.remove('translate-x-full'), 10); // アニメーション用
+            state.activePanel = panelName;
+            
+            // ボタンのアクティブ状態更新
+            document.querySelectorAll('.panel-btn').forEach(btn => {
+                if(btn.dataset.panel === panelName) btn.classList.add('bg-slate-200', 'text-blue-600');
+                else btn.classList.remove('bg-slate-200', 'text-blue-600');
+            });
+
+            lucide.createIcons();
+            
+            if(panelName === 'notes') {
+                this.renderNotes();
+            }
+        },
+        
+        closeRightPanel() {
+            const panel = document.getElementById('right-panel');
+            panel.classList.add('translate-x-full');
+            // モバイル時の隠蔽用
+            setTimeout(() => { if(panel.classList.contains('translate-x-full')) panel.classList.add('hidden'); }, 300);
+            state.activePanel = null;
+            document.querySelectorAll('.panel-btn').forEach(btn => btn.classList.remove('bg-slate-200', 'text-blue-600'));
+        },
+
+        openModal(id) {
+            const modal = document.getElementById(id);
+            const content = document.getElementById(`${id}-content`);
+            modal.classList.remove('hidden');
+            
+            // メモ追加モーダル特有の処理
+            if (id === 'add-note-modal' && state.currentBook) {
+                 const book = state.currentBook;
+                 const textPreview = book.sentences[book.currentIndex] || "テキストがありません";
+                 document.getElementById('note-context-preview').textContent = textPreview;
+                 document.getElementById('new-note-text').value = '';
+                 setTimeout(() => document.getElementById('new-note-text').focus(), 100);
+            }
+
+            // アニメーション
+            setTimeout(() => {
+                modal.classList.remove('opacity-0');
+                content.classList.remove('scale-95');
+            }, 10);
+        },
+
+        closeModal(id) {
+            const modal = document.getElementById(id);
+            const content = document.getElementById(`${id}-content`);
+            modal.classList.add('opacity-0');
+            content.classList.add('scale-95');
+            setTimeout(() => {
+                modal.classList.add('hidden');
+            }, 300); // transition時間と合わせる
+        },
+
+        addChatMessage(sender, text, isSystem = false) {
+            const container = document.getElementById('chat-messages');
+            const div = document.createElement('div');
+            
+            if (isSystem) {
+                div.className = 'text-center text-xs text-red-500 my-2';
+                div.textContent = text;
+            } else if (sender === 'You') {
+                div.className = 'flex justify-end';
+                div.innerHTML = `<div class="bg-blue-600 text-white rounded-2xl rounded-tr-sm px-4 py-2 max-w-[85%] shadow-sm text-sm break-words">${this.escapeHTML(text)}</div>`;
+            } else {
+                div.className = 'flex justify-start relative group';
+                // 読み上げボタンを埋め込み
+                const safeText = this.escapeHTML(text);
+                div.innerHTML = `
+                    <div class="bg-white border border-slate-200 text-slate-700 rounded-2xl rounded-tl-sm px-4 py-3 max-w-[90%] shadow-sm text-sm break-words leading-relaxed whitespace-pre-wrap">${safeText}</div>
+                    <button class="absolute -right-8 top-1 p-1.5 text-slate-400 hover:text-blue-600 bg-white rounded-full shadow-sm opacity-0 group-hover:opacity-100 transition-opacity border border-slate-100" onclick="player.speakFreeText('${safeText.replace(/'/g, "\\'")}')" title="読み上げる">
+                        <i data-lucide="volume-2" class="w-4 h-4"></i>
+                    </button>
+                `;
+            }
+            container.appendChild(div);
+            container.scrollTop = container.scrollHeight;
+            lucide.createIcons();
+        },
+
+        renderNotes() {
+            const container = document.getElementById('notes-list');
+            container.innerHTML = '';
+
+            if (!state.currentBook) {
+                container.innerHTML = '<div class="text-sm text-slate-400 text-center mt-10">本が選択されていません</div>';
+                return;
+            }
+
+            if (state.notes.length === 0) {
+                container.innerHTML = '<div class="text-sm text-slate-400 text-center mt-10 flex flex-col items-center gap-2"><i data-lucide="notebook" class="w-8 h-8 opacity-50"></i> メモはありません。<br>気になったシーンでメモを追加しましょう。</div>';
+                lucide.createIcons();
+                return;
+            }
+
+            state.notes.forEach(note => {
+                const div = document.createElement('div');
+                div.className = 'bg-white p-3 rounded-lg shadow-sm border border-slate-200 cursor-pointer hover:border-amber-300 transition-colors group';
+                div.onclick = () => {
+                    player.jumpTo(note.sentenceIndex);
+                    // モバイルの場合はパネルを閉じてテキストを見せる
+                    if (window.innerWidth < 768) this.closeRightPanel();
+                };
+
+                const header = document.createElement('div');
+                header.className = 'flex justify-between items-start mb-2';
+                
+                const badge = document.createElement('span');
+                badge.className = 'text-[10px] font-medium bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded';
+                badge.innerHTML = `<i data-lucide="map-pin" class="w-3 h-3 inline mr-0.5"></i> ${Math.floor((note.sentenceIndex / state.currentBook.sentences.length)*100)}% 地点`;
+                
+                const date = document.createElement('span');
+                date.className = 'text-[10px] text-slate-400';
+                date.textContent = new Date(note.createdAt).toLocaleDateString();
+
+                header.appendChild(badge);
+                header.appendChild(date);
+
+                const textP = document.createElement('p');
+                textP.className = 'text-sm text-slate-800 font-medium mb-2 whitespace-pre-wrap';
+                textP.textContent = note.text;
+
+                const contextBox = document.createElement('div');
+                contextBox.className = 'bg-slate-50 p-2 rounded text-xs text-slate-500 italic line-clamp-2 border-l-2 border-slate-300';
+                contextBox.textContent = note.context;
+
+                div.appendChild(header);
+                div.appendChild(textP);
+                div.appendChild(contextBox);
+
+                container.appendChild(div);
+            });
+            lucide.createIcons();
+        },
+
+        escapeHTML(str) {
+            return str.replace(/[&<>'"]/g, tag => ({
+                '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;'
+            }[tag] || tag));
+        },
+        toggleSearch() {
+            document.getElementById('search-panel').classList.toggle('hidden');
+            document.getElementById('search-input').focus();
+        },
+        search() {
+            const query = document.getElementById('search-input').value.toLowerCase();
+            if (!query) return;
+            const spans = document.querySelectorAll('.sentence-span');
+            spans.forEach((span, index) => {
+                if (span.textContent.toLowerCase().includes(query)) {
+                    span.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    player.jumpTo(index);
+                    return false;
+                }
+            });
+        }
+    };
+
+    // ==========================================
+    // アプリケーションロジック
+    // ==========================================
+    const app = {
+        async init() {
+            ui.init();
+            // 設定の初期反映
+            const savedFont = localStorage.getItem('ab_font') || 'sans';
+            const savedLayout = localStorage.getItem('ab_layout') || 'horizontal';
+            const fontRadio = document.querySelector(`input[name="font-type"][value="${savedFont}"]`);
+            const layoutRadio = document.querySelector(`input[name="layout-type"][value="${savedLayout}"]`);
+            if (fontRadio) fontRadio.checked = true;
+            if (layoutRadio) layoutRadio.checked = true;
+            if (savedFont === 'serif') {
+                document.getElementById('text-content').classList.add('font-serif-custom');
+            }
+            if (savedLayout === 'vertical') {
+                document.getElementById('text-view-container').classList.add('writing-mode-vertical');
+            }
+            try {
+                await dbManager.init();
+                await ui.loadInitialData();
+            } catch (e) {
+                console.error("DB Initialization failed:", e);
+                alert("データベースの初期化に失敗しました。プライベートブラウズ等の制限を確認してください。");
+            }
+        },
+
+        async selectBook(bookId) {
+            const book = state.books.find(b => b.id === bookId);
+            if (!book) return;
+
+            // 以前の再生を停止
+            player.pause();
+
+            state.currentBook = book;
+            ui.updateMediaSession(book.title);
+            // メモをロード
+            state.notes = await dbManager.getNotes(bookId);
+
+            // UI更新
+            ui.renderBookList();
+            ui.renderTextWindow();
+            ui.updateProgressBar();
+            ui.updatePlayerControls();
+            
+            if (state.activePanel === 'notes') ui.renderNotes();
+
+            // モバイルの場合、本を選択したらサイドバーを閉じる
+            if (window.innerWidth < 768) {
+                document.getElementById('sidebar').classList.add('-translate-x-full');
+            }
+            
+            // チャット履歴クリア (本が変わったため)
+            document.getElementById('chat-messages').innerHTML = '<div class="text-center text-xs text-slate-400 my-4">AIアシスタントに要約や質問ができます</div>';
+        },
+
+        async processNewBook() {
+            const titleInput = document.getElementById('new-book-title');
+            const textInput = document.getElementById('new-book-text');
+            const title = titleInput.value.trim();
+            const text = textInput.value;
+
+            if (!title) { alert("タイトルを入力してください。"); return; }
+            if (!text) { alert("テキストを入力してください。"); return; }
+
+            // UIをローディング状態に
+            document.getElementById('processing-indicator').classList.remove('hidden');
+            document.querySelectorAll('#add-book-modal button').forEach(b => b.disabled = true);
+
+            // 重い分割処理を非同期にしてUIフリーズを回避
+            setTimeout(async () => {
+                try {
+                    // 日本語の文単位で分割する正規表現 (改行も区切りとする)
+                    // 「。」「！」「？」「\n」などで分割。分割記号は残す。
+                    const sentences = text.match(/[^。！？\n]+[。！？\n]*/g) || [text];
+                    
+                    // 空白だけの要素を除去し、トリム
+                    const cleanSentences = sentences
+                        .map(s => s.trim())
+                        .filter(s => s.length > 0);
+
+                    const newBook = {
+                        id: crypto.randomUUID(),
+                        title: title,
+                        text: text, // 全文も一応保存（重ければ削除も検討）
+                        sentences: cleanSentences,
+                        currentIndex: 0,
+                        createdAt: Date.now(),
+                        updatedAt: Date.now()
+                    };
+
+                    await dbManager.saveBook(newBook);
+                    state.books = await dbManager.getBooks(); // 再取得してソート
+                    
+                    // リセット
+                    titleInput.value = '';
+                    textInput.value = '';
+                    ui.closeModal('add-book-modal');
+                    
+                    ui.renderBookList();
+                    this.selectBook(newBook.id);
+
+                } catch (e) {
+                    console.error("Book Save Error", e);
+                    alert("保存に失敗しました。容量が大きすぎる可能性があります。");
+                } finally {
+                    document.getElementById('processing-indicator').classList.add('hidden');
+                    document.querySelectorAll('#add-book-modal button').forEach(b => b.disabled = false);
+                }
+            }, 50);
+        },
+
+        async deleteBook(id) {
+            await dbManager.deleteBook(id);
+            state.books = state.books.filter(b => b.id !== id);
+            if (state.currentBook && state.currentBook.id === id) {
+                state.currentBook = null;
+                player.pause();
+                ui.renderTextWindow();
+                ui.updateProgressBar();
+            }
+            ui.renderBookList();
+        },
+
+        updateFont() {
+            const font = document.querySelector('input[name="font-type"]:checked').value;
+            const container = document.getElementById('text-content');
+            if (font === 'serif') {
+                container.classList.add('font-serif-custom');
+            } else {
+                container.classList.remove('font-serif-custom');
+            }
+            localStorage.setItem('ab_font', font);
+        },
+        updateLayout() {
+            const layout = document.querySelector('input[name="layout-type"]:checked').value;
+            const container = document.getElementById('text-view-container');
+            if (layout === 'vertical') {
+                container.classList.add('writing-mode-vertical');
+            } else {
+                container.classList.remove('writing-mode-vertical');
+            }
+            localStorage.setItem('ab_layout', layout);
+        },
+
+        async saveNote() {
+            if (!state.currentBook) return;
+            const textInput = document.getElementById('new-note-text');
+            const text = textInput.value.trim();
+            if (!text) return;
+
+            const book = state.currentBook;
+            const note = {
+                id: crypto.randomUUID(),
+                bookId: book.id,
+                sentenceIndex: book.currentIndex,
+                text: text,
+                context: book.sentences[book.currentIndex],
+                createdAt: Date.now()
+            };
+
+            await dbManager.saveNote(note);
+            state.notes.push(note);
+            // ソート
+            state.notes.sort((a, b) => a.sentenceIndex - b.sentenceIndex);
+            
+            ui.closeModal('add-note-modal');
+            
+            // メモパネルが開いていれば更新、開いていなければ開く
+            if (state.activePanel !== 'notes') {
+                ui.toggleRightPanel('notes');
+            } else {
+                ui.renderNotes();
+            }
+        },
+
+        saveSettings() {
+            const key = document.getElementById('setting-api-key').value.trim();
+            const model = document.getElementById('setting-model').value.trim() || "gemini-3.1-flash-lite-preview";
+            const voice = document.getElementById('voice-select').value;
+            
+            state.settings.apiKey = key;
+            state.settings.model = model;
+            
+            localStorage.setItem('ab_api_key', key);
+            localStorage.setItem('ab_model', model);
+            localStorage.setItem('ab_voice_name', voice);
+            app.updateFont();
+            
+            if (player.isPlaying) {
+                player.speakCurrent(); 
+            }
+            
+            document.getElementById('chat-model-label').textContent = model.split('-').slice(1,3).join(' ');
+            
+            const btn = document.querySelector('#panel-settings button');
+            const originalText = btn.textContent;
+            btn.textContent = "保存しました ✓";
+            btn.classList.add('bg-green-600');
+            setTimeout(() => {
+                btn.textContent = originalText;
+                btn.classList.remove('bg-green-600');
+            }, 2000);
+        },
+        
+        async clearDatabase() {
+            if(confirm("本当に全てのオーディオブックとメモを削除しますか？\nこの操作は取り消せません。")) {
+                await dbManager.clearAll();
+                state.books = [];
+                state.currentBook = null;
+                state.notes = [];
+                player.pause();
+                ui.renderBookList();
+                ui.renderTextWindow();
+                ui.updateProgressBar();
+                if(state.activePanel === 'notes') ui.renderNotes();
+                alert("全てのデータを削除しました。");
+            }
+        }
+    };
+
+    // ==========================================
+    // 起動
+    // ==========================================
+    window.addEventListener('DOMContentLoaded', () => {
+        app.init();
+    });
+
+</script>
+</body>
+</html>
+
+
