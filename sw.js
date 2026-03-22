@@ -1,5 +1,5 @@
 // ★アプリを更新したい時は、ここの v2 を v3, v4... と数字を上げていきます
-const CACHE_NAME = 'audiobook-cache-v2';
+const CACHE_NAME = 'audiobook-cache-v3';
 const urlsToCache = [
   './',
   './index.html',
