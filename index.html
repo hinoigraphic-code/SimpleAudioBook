@@ -102,9 +102,6 @@
 </head>
 <body class="bg-slate-50 text-slate-800 h-[100dvh] flex overflow-hidden font-sans text-sm md:text-base dark:bg-slate-900 dark:text-slate-100">
 
-    <!-- バックグラウンド維持用の無音オーディオ（実体としてDOMに配置） -->
-    <audio id="silent-audio" loop src="data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA" class="hidden"></audio>
-
     <!-- サイドバー: 本のリスト -->
     <aside id="sidebar" class="w-64 bg-white border-r border-slate-200 flex flex-col z-20 transition-transform transform -translate-x-full md:translate-x-0 absolute md:relative h-full">
         <div class="p-4 border-b border-slate-200 flex justify-between items-center bg-slate-100">
@@ -312,17 +309,6 @@
                         </label>
                     </div>
                 </div>
-                <div>
-                    <label class="block text-sm font-medium text-slate-700 mb-1">1回あたりの読み上げ文字数（目安）</label>
-                    <select id="setting-chunk-size" class="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500 bg-white">
-                        <option value="0">文ごとに細かく区切る</option>
-                        <option value="50">約50文字</option>
-                        <option value="100">約100文字</option>
-                        <option value="200">約200文字</option>
-                        <option value="400">約400文字</option>
-                    </select>
-                    <p class="text-xs text-slate-500 mt-1">短すぎると音声が途切れやすくなります。（※設定後、本を開き直すと反映）</p>
-                </div>
                 <button onclick="app.saveSettings()" class="w-full bg-slate-800 text-white rounded py-2 hover:bg-slate-700 transition-colors font-medium text-sm shadow">
                     設定を保存
                 </button>
@@ -414,8 +400,7 @@
             apiKey: localStorage.getItem('ab_api_key') || apiKey,
             model: localStorage.getItem('ab_model') || "gemini-3.1-flash-lite-preview",
             font: localStorage.getItem('ab_font') || 'sans',
-            gasUrl: localStorage.getItem('ab_gas_url') || "",
-            chunkSize: parseInt(localStorage.getItem('ab_chunk_size') || "100", 10)
+            gasUrl: localStorage.getItem('ab_gas_url') || ""
         },
         mediaSessionInitialized: false
     };
@@ -504,34 +489,8 @@
         utterance: null,
         isPlaying: false,
         rate: 1.0,
-        keepAliveTimer: null,
-        wakeLock: null,
-        currentSpeakSession: 0, // 非同期の音声キュー管理用ID
-
-        // 自動スリープ防止機能をリクエストする
-        async requestWakeLock() {
-            if ('wakeLock' in navigator) {
-                try {
-                    this.wakeLock = await navigator.wakeLock.request('screen');
-                    this.wakeLock.addEventListener('release', () => {
-                        console.log('スリープ防止が解除されました');
-                    });
-                    console.log('スリープ防止がアクティブになりました');
-                } catch (err) {
-                    console.error('WakeLock Error:', err.name, err.message);
-                }
-            }
-        },
-
-        // 自動スリープ防止機能を解除する
-        releaseWakeLock() {
-            if (this.wakeLock !== null) {
-                this.wakeLock.release()
-                    .then(() => {
-                        this.wakeLock = null;
-                    });
-            }
-        },
+        // バックグラウンド再生維持のための無音オーディオ
+        silentAudio: new Audio('data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA'),
 
         togglePlay() {
             if (!state.currentBook) {
@@ -555,28 +514,14 @@
             
             this.isPlaying = true;
             
-            // ① DOM上の無音オーディオを再生し、ブラウザを「メディア再生中」と強く誤認させる
-            const silentEl = document.getElementById('silent-audio');
-            if (silentEl) {
-                silentEl.play().catch(e => console.log("無音オーディオの再生に失敗:", e));
-            }
+            // バックグラウンド維持のため無音オーディオをループ再生
+            this.silentAudio.loop = true;
+            this.silentAudio.play().catch(e => console.log("無音オーディオの再生に失敗:", e));
 
             // スマホやイヤホンに「再生中」であることを明示的に伝える
             if ('mediaSession' in navigator) {
                 navigator.mediaSession.playbackState = 'playing';
             }
-
-            // ② 14秒ハック: Androidの音声合成エンジンが裏側でサスペンドされるのを防ぐため、定期的に一時停止→再開して起こし続ける
-            if (this.keepAliveTimer) clearInterval(this.keepAliveTimer);
-            this.keepAliveTimer = setInterval(() => {
-                if (this.isPlaying && this.synth.speaking) {
-                    this.synth.pause();
-                    this.synth.resume();
-                }
-            }, 14000);
-
-            // ③ スリープ防止機能: 画面が勝手に暗くなってオフになるのを防ぐ
-            this.requestWakeLock();
 
             ui.updatePlayerControls();
             this.speakCurrent();
@@ -587,19 +532,12 @@
             this.synth.cancel();
             
             // 無音オーディオも停止
-            const silentEl = document.getElementById('silent-audio');
-            if (silentEl) silentEl.pause();
-
-            // 14秒ハックのタイマーを停止
-            if (this.keepAliveTimer) clearInterval(this.keepAliveTimer);
+            this.silentAudio.pause();
 
             // スマホやイヤホンに「停止中」であることを明示的に伝える
             if ('mediaSession' in navigator) {
                 navigator.mediaSession.playbackState = 'paused';
             }
-
-            // スリープ防止機能を解除（バッテリー節約のため）
-            this.releaseWakeLock();
 
             ui.updatePlayerControls();
         },
@@ -607,9 +545,6 @@
         speakCurrent() {
             if (!this.isPlaying) return;
             this.synth.cancel(); // 念のためキャンセル
-            
-            this.currentSpeakSession++;
-            const sessionId = this.currentSpeakSession;
 
             const book = state.currentBook;
             // sentencesがまだロードされていない場合は中断
@@ -622,69 +557,40 @@
                 return;
             }
 
-            // --- 長文途切れ対策：内部でさらに細かく分割 ---
-            // 見た目のハイライト単位が長くても、音声エンジンには細かく渡して「15秒強制停止バグ」を回避する
-            const subSentences = text.match(/[^。！？\n]+[。！？\n]*/g) || [text];
-            let subIndex = 0;
+            this.utterance = new SpeechSynthesisUtterance(text);
+            this.utterance.lang = 'ja-JP';
+            this.utterance.rate = this.rate;
+            
+            // 音声設定の適用
+            const voiceName = localStorage.getItem('ab_voice_name');
+            const voices = this.synth.getVoices();
+            const selectedVoice = voices.find(v => v.name === voiceName || v.voiceURI === voiceName);
+            if (selectedVoice) {
+                this.utterance.voice = selectedVoice;
+            }
 
-            const playSubSentence = () => {
-                if (!this.isPlaying || this.currentSpeakSession !== sessionId) return;
-
-                if (subIndex >= subSentences.length) {
-                    // 全ての細かい文を読み終えたら、次の大チャンクへ進む
+            this.utterance.onend = (e) => {
+                // キャンセルによる終了でなく、自然終了の場合のみ次へ
+                if (this.isPlaying && e.type === 'end') {
                     this.advanceToNext();
-                    return;
                 }
-
-                const subText = subSentences[subIndex];
-                if (!subText || !subText.trim().replace(/[\n\r]/g, '')) {
-                    subIndex++;
-                    playSubSentence();
-                    return;
-                }
-
-                this.utterance = new SpeechSynthesisUtterance(subText);
-                this.utterance.lang = 'ja-JP';
-                this.utterance.rate = this.rate;
-                
-                // 音声設定の適用
-                const voiceName = localStorage.getItem('ab_voice_name');
-                const voices = this.synth.getVoices();
-                const selectedVoice = voices.find(v => v.name === voiceName || v.voiceURI === voiceName);
-                if (selectedVoice) {
-                    this.utterance.voice = selectedVoice;
-                }
-
-                this.utterance.onend = (e) => {
-                    // キャンセルによる終了でなく、自然終了の場合のみ次へ
-                    if (this.isPlaying && this.currentSpeakSession === sessionId && e.type === 'end') {
-                        subIndex++;
-                        playSubSentence();
-                    }
-                };
-
-                this.utterance.onerror = (e) => {
-                    console.warn("Speech Error or Canceled:", e);
-                    // 意図的なキャンセルでなければ停止
-                    if (this.isPlaying && this.currentSpeakSession === sessionId && e.error !== 'canceled' && e.error !== 'interrupted') {
-                        this.pause();
-                    }
-                };
-
-                // UI更新してスクロールさせる（大チャンクの最初だけ実行）
-                if (subIndex === 0) {
-                    ui.renderTextWindow();
-                }
-                
-                // バグ回避のための遅延発火
-                setTimeout(() => {
-                    if(this.isPlaying && this.currentSpeakSession === sessionId) {
-                        this.synth.speak(this.utterance);
-                    }
-                }, 50);
             };
 
-            playSubSentence();
+            this.utterance.onerror = (e) => {
+                console.warn("Speech Error or Canceled:", e);
+                // 意図的なキャンセルでなければ停止
+                if (this.isPlaying) {
+                    this.pause();
+                }
+            };
+
+            // 読み上げ前にUI更新してスクロールさせる
+            ui.renderTextWindow();
+            
+            // バグ回避のための遅延発火 (Safariなどで連続再生が止まる問題への対策)
+            setTimeout(() => {
+                if(this.isPlaying) this.synth.speak(this.utterance);
+            }, 50);
         },
 
         // 進捗を裏側でGASに同期する（投げっぱなし）
@@ -887,7 +793,6 @@
             document.getElementById('setting-api-key').value = state.settings.apiKey;
             document.getElementById('setting-model').value = state.settings.model;
             document.getElementById('setting-gas-url').value = state.settings.gasUrl;
-            document.getElementById('setting-chunk-size').value = state.settings.chunkSize.toString();
             document.getElementById('chat-model-label').textContent = state.settings.model.split('-').slice(1,3).join(' ');
 
             const voiceSelect = document.getElementById('voice-select');
@@ -1265,18 +1170,8 @@
             state.notes.forEach(note => {
                 const div = document.createElement('div');
                 div.className = 'bg-white p-3 rounded-lg shadow-sm border border-slate-200 cursor-pointer hover:border-amber-300 transition-colors group';
-                
-                // 現在の分割方法に合わせて、対象テキストが含まれるブロックのインデックスを特定
-                let displayIndex = note.sentenceIndex;
-                if (state.currentBook.sentences) {
-                    const foundIndex = state.currentBook.sentences.findIndex(s => s.includes(note.context) || note.context.includes(s));
-                    if (foundIndex !== -1) {
-                        displayIndex = foundIndex;
-                    }
-                }
-
                 div.onclick = () => {
-                    player.jumpTo(displayIndex);
+                    player.jumpTo(note.sentenceIndex);
                     // モバイルの場合はパネルを閉じてテキストを見せる
                     if (window.innerWidth < 768) this.closeRightPanel();
                 };
@@ -1284,10 +1179,10 @@
                 const header = document.createElement('div');
                 header.className = 'flex justify-between items-start mb-2';
                 
-                const totalSentences = state.currentBook.sentences ? state.currentBook.sentences.length : 1;
+                const totalSentences = state.currentBook.sentences ? state.currentBook.sentences.length : state.currentBook.totalSentences;
                 const badge = document.createElement('span');
                 badge.className = 'text-[10px] font-medium bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded';
-                badge.innerHTML = `<i data-lucide="map-pin" class="w-3 h-3 inline mr-0.5"></i> ${Math.floor((displayIndex / totalSentences)*100)}% 地点`;
+                badge.innerHTML = `<i data-lucide="map-pin" class="w-3 h-3 inline mr-0.5"></i> ${Math.floor((note.sentenceIndex / totalSentences)*100)}% 地点`;
                 
                 const date = document.createElement('span');
                 date.className = 'text-[10px] text-slate-400';
@@ -1340,31 +1235,6 @@
     // アプリケーションロジック
     // ==========================================
     const app = {
-        // 設定された目安の文字数でテキストを賢く分割する関数
-        splitTextIntoChunks(text, targetLength) {
-            const baseSentences = text.match(/[^。！？\n]+[。！？\n]*/g) || [text];
-            const cleanSentences = baseSentences.filter(s => s.trim().length > 0);
-            
-            if (targetLength <= 0) return cleanSentences;
-
-            const chunks = [];
-            let currentChunk = "";
-
-            for (const sentence of cleanSentences) {
-                currentChunk += sentence;
-                // 目安の長さを超えたらチャンクを確定
-                if (currentChunk.length >= targetLength) {
-                    chunks.push(currentChunk);
-                    currentChunk = "";
-                }
-            }
-            // 最後に残ったものがあれば追加
-            if (currentChunk) {
-                chunks.push(currentChunk);
-            }
-            return chunks;
-        },
-
         async init() {
             ui.init();
             // 設定の初期反映
@@ -1381,13 +1251,6 @@
                 document.getElementById('text-view-container').classList.add('writing-mode-vertical');
             }
             
-            // アプリ起動時や画面復帰時にスリープ防止を再要求する
-            document.addEventListener('visibilitychange', async () => {
-                if (document.visibilityState === 'visible' && player.isPlaying) {
-                    await player.requestWakeLock();
-                }
-            });
-
             try {
                 if (state.settings.gasUrl) {
                     await ui.loadInitialData();
@@ -1416,20 +1279,9 @@
             try {
                 // 本文をクラウド(Drive)からダウンロード
                 const rawText = await cloudManager.getBookText(book.fileId);
-                
-                // 設定された目安文字数で分割
-                const newSentences = app.splitTextIntoChunks(rawText, state.settings.chunkSize);
-
-                // 分割数が変わった場合、現在位置を割合から推測して補正
-                const savedTotalSentences = book.totalSentences || 1;
-                if (savedTotalSentences !== newSentences.length && book.currentIndex > 0) {
-                    const ratio = book.currentIndex / savedTotalSentences;
-                    book.currentIndex = Math.floor(ratio * newSentences.length);
-                    book.currentIndex = Math.min(Math.max(0, book.currentIndex), newSentences.length - 1);
-                }
-                
-                book.sentences = newSentences;
-                book.totalSentences = newSentences.length; // 今の分割数で上書き
+                // 文に分割
+                const sentences = rawText.match(/[^。！？\n]+[。！？\n]*/g) || [rawText];
+                book.sentences = sentences.filter(s => s.trim().length > 0);
 
                 state.currentBook = book;
                 ui.updateMediaSession(book.title);
@@ -1475,8 +1327,9 @@
             document.querySelectorAll('#add-book-modal button').forEach(b => b.disabled = true);
 
             try {
-                // 設定された目安文字数で分割
-                const cleanSentences = app.splitTextIntoChunks(text, state.settings.chunkSize);
+                // 日本語の文単位で分割する正規表現 (改行も区切りとする)
+                const sentences = text.match(/[^。！？\n]+[。！？\n]*/g) || [text];
+                const cleanSentences = sentences.filter(s => s.trim().length > 0);
 
                 const newBook = {
                     id: crypto.randomUUID(),
@@ -1592,20 +1445,17 @@
             const model = document.getElementById('setting-model').value.trim() || "gemini-3.1-flash-lite-preview";
             const voice = document.getElementById('voice-select').value;
             const gasUrl = document.getElementById('setting-gas-url').value.trim();
-            const chunkSize = parseInt(document.getElementById('setting-chunk-size').value, 10);
             
             const oldUrl = state.settings.gasUrl;
             
             state.settings.apiKey = key;
             state.settings.model = model;
             state.settings.gasUrl = gasUrl; 
-            state.settings.chunkSize = chunkSize;
             
             localStorage.setItem('ab_api_key', key);
             localStorage.setItem('ab_model', model);
             localStorage.setItem('ab_voice_name', voice);
             localStorage.setItem('ab_gas_url', gasUrl); 
-            localStorage.setItem('ab_chunk_size', chunkSize);
             app.updateFont();
             
             // 初めてURLが設定された場合、データをロードする
