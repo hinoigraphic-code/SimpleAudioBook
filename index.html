@@ -261,7 +261,13 @@
                 <!-- メッセージがここに入る -->
             </div>
             <div class="p-3 border-t border-slate-200 bg-white shrink-0">
+                <div class="flex items-center justify-between mb-1 px-2">
+                    <span id="chat-voice-timer" class="text-xs text-red-500 font-medium hidden">00:00</span>
+                </div>
                 <form id="chat-form" class="flex gap-2" onsubmit="ai.submitChat(event)">
+                    <button type="button" id="chat-voice-btn" onclick="audioRecorder.toggleRecording('chat-input', 'chat-voice-btn', 'chat-voice-timer')" class="bg-slate-100 text-slate-500 p-2 rounded-full hover:bg-slate-200 transition-colors flex items-center justify-center min-w-[36px]" title="音声入力">
+                        <i data-lucide="mic" class="w-4 h-4"></i>
+                    </button>
                     <input type="text" id="chat-input" class="flex-1 border border-slate-300 rounded-full px-4 py-2 text-sm focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500" placeholder="質問や要約をリクエスト...">
                     <button type="submit" id="chat-submit-btn" class="bg-blue-600 text-white p-2 rounded-full hover:bg-blue-700 transition-colors flex items-center justify-center min-w-[36px]">
                         <i data-lucide="send" class="w-4 h-4"></i>
@@ -383,8 +389,16 @@
                     <p id="note-context-preview" class="italic mt-1 line-clamp-3">...</p>
                 </div>
                 <div>
-                    <label class="block text-sm font-medium text-slate-700 mb-1">メモ内容</label>
-                    <textarea id="new-note-text" class="w-full h-32 border border-slate-300 rounded px-3 py-2 resize-none focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500 text-sm" placeholder="このシーンの感想や気になったことを記録..."></textarea>
+                    <div class="flex items-center justify-between mb-1">
+                        <label class="block text-sm font-medium text-slate-700">メモ内容</label>
+                        <div class="flex items-center gap-2">
+                            <span id="note-voice-timer" class="text-xs text-red-500 font-medium hidden">00:00</span>
+                            <button type="button" id="note-voice-btn" onclick="audioRecorder.toggleRecording('new-note-text', 'note-voice-btn', 'note-voice-timer')" class="bg-slate-100 text-slate-500 p-1.5 rounded-full hover:bg-slate-200 transition-colors flex items-center justify-center" title="音声入力">
+                                <i data-lucide="mic" class="w-3.5 h-3.5"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <textarea id="new-note-text" class="w-full h-32 border border-slate-300 rounded px-3 py-2 resize-none focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500 text-sm" placeholder="感想や気になったことを記録..."></textarea>
                 </div>
             </div>
             <div class="p-4 border-t border-slate-200 bg-slate-50 rounded-b-lg flex justify-end gap-2">
@@ -781,6 +795,164 @@
                 btn.disabled = false;
                 btn.innerHTML = '<i data-lucide="send" class="w-4 h-4"></i>';
                 lucide.createIcons();
+            }
+        }
+    };
+
+    // ==========================================
+    // 音声録音と文字起こし (Gemini Audio)
+    // ==========================================
+    const audioRecorder = {
+        mediaRecorder: null,
+        audioChunks: [],
+        startTime: null,
+        timerInterval: null,
+        targetInputId: null,
+
+        async startRecording(targetId, btnId, timerId) {
+            const apiKeyToUse = state.settings.apiKey;
+            if (!apiKeyToUse) {
+                alert("音声入力を使用するには設定からGemini APIキーを入力してください。");
+                return;
+            }
+
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                this.mediaRecorder = new MediaRecorder(stream);
+                this.audioChunks = [];
+                this.targetInputId = targetId;
+
+                this.mediaRecorder.ondataavailable = (e) => {
+                    if (e.data.size > 0) this.audioChunks.push(e.data);
+                };
+
+                this.mediaRecorder.onstop = async () => {
+                    const audioBlob = new Blob(this.audioChunks, { type: 'audio/webm' });
+                    this.stopTimer(timerId);
+                    this.resetUI(btnId);
+                    await this.processAudioWithGemini(audioBlob, targetId);
+                };
+
+                this.mediaRecorder.start();
+                this.startTimer(timerId);
+                this.updateUIToRecording(btnId);
+            } catch (err) {
+                console.error("マイクエラー:", err);
+                alert("マイクの使用が許可されていません。ブラウザの設定を確認してください。");
+            }
+        },
+
+        stopRecording() {
+            if (this.mediaRecorder && this.mediaRecorder.state === "recording") {
+                this.mediaRecorder.stop();
+                this.mediaRecorder.stream.getTracks().forEach(track => track.stop());
+            }
+        },
+
+        toggleRecording(targetId, btnId, timerId) {
+            if (this.mediaRecorder && this.mediaRecorder.state === "recording") {
+                this.stopRecording();
+            } else {
+                this.startRecording(targetId, btnId, timerId);
+            }
+        },
+
+        startTimer(timerId) {
+            const timerEl = document.getElementById(timerId);
+            if (!timerEl) return;
+            timerEl.classList.remove('hidden');
+            this.startTime = Date.now();
+            this.timerInterval = setInterval(() => {
+                const elapsed = Math.floor((Date.now() - this.startTime) / 1000);
+                const m = Math.floor(elapsed / 60).toString().padStart(2, '0');
+                const s = (elapsed % 60).toString().padStart(2, '0');
+                timerEl.textContent = `${m}:${s}`;
+            }, 1000);
+        },
+
+        stopTimer(timerId) {
+            clearInterval(this.timerInterval);
+            const timerEl = document.getElementById(timerId);
+            if (timerEl) {
+                timerEl.textContent = "00:00";
+                timerEl.classList.add('hidden');
+            }
+        },
+
+        updateUIToRecording(btnId) {
+            const btn = document.getElementById(btnId);
+            if (!btn) return;
+            btn.classList.add('bg-red-500', 'text-white', 'animate-pulse');
+            btn.classList.remove('bg-slate-100', 'text-slate-500', 'hover:bg-slate-200');
+            btn.innerHTML = '<i data-lucide="square" class="w-4 h-4 fill-current"></i>';
+            lucide.createIcons();
+        },
+
+        resetUI(btnId) {
+            const btn = document.getElementById(btnId);
+            if (!btn) return;
+            btn.classList.remove('bg-red-500', 'text-white', 'animate-pulse');
+            btn.classList.add('bg-slate-100', 'text-slate-500', 'hover:bg-slate-200');
+            btn.innerHTML = '<i data-lucide="mic" class="w-4 h-4"></i>';
+            lucide.createIcons();
+        },
+
+        async processAudioWithGemini(blob, targetId) {
+            const inputEl = document.getElementById(targetId);
+            if (!inputEl) return;
+
+            const originalPlaceholder = inputEl.placeholder;
+            inputEl.placeholder = "音声をテキストに変換中...";
+            inputEl.disabled = true;
+
+            try {
+                const base64Audio = await new Promise((resolve) => {
+                    const reader = new FileReader();
+                    reader.onloadend = () => resolve(reader.result.split(',')[1]);
+                    reader.readAsDataURL(blob);
+                });
+
+                const apiKeyToUse = state.settings.apiKey;
+                const model = state.settings.model || "gemini-3.1-flash-lite-preview"; 
+                const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKeyToUse}`;
+
+                const prompt = "添付された音声の文字起こしを行ってください。ただし、「えーっと」や「あのー」などのフィラー（ケバ）を取り除き、言い間違いを文脈に合わせて自然に直した、読みやすいテキストのみを出力してください。結果のテキスト以外（説明や挨拶など）は一切出力しないでください。";
+
+                const requestBody = {
+                    contents: [{
+                        role: "user",
+                        parts: [
+                            { text: prompt },
+                            { inlineData: { mimeType: blob.type || "audio/webm", data: base64Audio } }
+                        ]
+                    }]
+                };
+
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(requestBody)
+                });
+
+                if (!response.ok) throw new Error("音声認識APIエラー");
+
+                const data = await response.json();
+                const transcribedText = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || "";
+
+                if (transcribedText) {
+                    if (inputEl.tagName === 'TEXTAREA') {
+                        inputEl.value = inputEl.value + (inputEl.value ? '\n' : '') + transcribedText;
+                    } else {
+                        inputEl.value = transcribedText;
+                    }
+                }
+            } catch (error) {
+                console.error("Audio processing error:", error);
+                alert("音声の解析に失敗しました。");
+            } finally {
+                inputEl.placeholder = originalPlaceholder;
+                inputEl.disabled = false;
+                inputEl.focus();
             }
         }
     };
