@@ -14,7 +14,10 @@
         ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
         
         /* 読み上げ時のトランジション */
-        .sentence-span { transition: all 0.2s ease-in-out; }
+        .sentence-span { 
+            transition: all 0.2s ease-in-out; 
+            white-space: pre-wrap; /* 元テキストの改行（段落）をそのまま反映する */
+        }
         
         /* ローダー */
         .loader {
@@ -25,6 +28,12 @@
         
         /* 隠しクラス */
         .hidden { display: none !important; }
+
+        /* 読書モード用（ヘッダーとプレイヤーを消す） */
+        .reading-mode #main-header,
+        .reading-mode #player-control-panel {
+            display: none !important;
+        }
 
         /* 縦書きモード用 */
         .writing-mode-vertical { 
@@ -38,13 +47,12 @@
         .writing-mode-vertical #text-content { 
             display: block; 
             height: 100%; 
-            min-height: 80vh; 
-            padding-top: 0; 
+            padding-bottom: 0 !important; /* 横書き用の下部余白を消去 */
+            max-width: none !important; /* 横書き用の幅制限を消去 */
         }
         .writing-mode-vertical .sentence-span { 
-            display: inline-block; 
-            margin-right: 0.5rem; 
-            margin-bottom: 0; 
+            display: inline; /* inline-blockからinlineに変更し、文字単位で自然に折り返す */
+            line-height: 2; /* 縦書き時の行間を調整 */
         }
 
         /* フォント設定 */
@@ -53,10 +61,14 @@
             line-height: 1.8;
         }
         
-        :root { --bg: #ffffff; --text: #1e293b; --text-sub: #475569; --panel: #ffffff; --border: #e2e8f0; --accent: #3b82f6; }
-        .sepia { --bg: #fdf6e3; --text: #5f4b32; --text-sub: #7a6a54; --panel: #f4eccc; --border: #e6dcc0; --accent: #b38600; }
-        .dark { --bg: #0f172a; --text: #f1f5f9; --text-sub: #cbd5e1; --panel: #1e293b; --border: #334155; --accent: #60a5fa; }
+        :root { --bg: #ffffff; --text: #1e293b; --text-sub: #475569; --panel: #ffffff; --border: #e2e8f0; --accent: #3b82f6; --hover-bg: #e2e8f0; --highlight-bg: #fef08a; --highlight-text: #0f172a; }
+        .sepia { --bg: #fdf6e3; --text: #000000; --text-sub: #333333; --panel: #f4eccc; --border: #e6dcc0; --accent: #b38600; --hover-bg: #e6dcc0; --highlight-bg: #fcd34d; --highlight-text: #000000; }
+        .dark { --bg: #0f172a; --text: #f1f5f9; --text-sub: #cbd5e1; --panel: #1e293b; --border: #334155; --accent: #60a5fa; --hover-bg: #334155; --highlight-bg: #1e40af; --highlight-text: #ffffff; }
         body { background-color: var(--bg); color: var(--text); }
+        
+        /* 独自テーマ対応の追加クラス */
+        .sentence-hover:hover { background-color: var(--hover-bg); }
+        .sentence-highlight { background-color: var(--highlight-bg) !important; color: var(--highlight-text) !important; font-weight: bold; box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05); }
         /* テーマ対応のためのTailwindクラス上書き */
         .bg-white { background-color: var(--panel) !important; }
         .bg-slate-50 { background-color: var(--bg) !important; }
@@ -91,9 +103,9 @@
     </aside>
 
     <!-- メインコンテンツ -->
-    <main class="flex-1 flex flex-col relative w-full overflow-hidden">
+    <main id="main-content" class="flex-1 flex flex-col relative w-full overflow-hidden">
         <!-- トップヘッダ -->
-        <header class="h-14 bg-white border-b border-slate-200 flex items-center justify-between px-4 shrink-0">
+        <header id="main-header" class="h-14 bg-white border-b border-slate-200 flex items-center justify-between px-4 shrink-0">
             <div class="flex items-center gap-3 truncate">
                 <button id="open-sidebar-btn" class="md:hidden p-2 -ml-2 hover:bg-slate-100 rounded text-slate-600">
                     <i data-lucide="menu" class="w-5 h-5"></i>
@@ -114,6 +126,9 @@
                     <i data-lucide="sun" id="icon-light" class="w-5 h-5"></i>
                     <i data-lucide="book-open" id="icon-sepia" class="w-5 h-5 hidden"></i>
                     <i data-lucide="moon" id="icon-dark" class="w-5 h-5 hidden"></i>
+                </button>
+                <button onclick="ui.toggleReadingMode()" class="p-2 rounded hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-500 transition-colors" title="広々と読む（読書モード）">
+                    <i data-lucide="maximize" class="w-5 h-5"></i>
                 </button>
                 <button onclick="ui.toggleRightPanel('settings')" class="panel-btn p-2 rounded hover:bg-slate-100 text-slate-500 transition-colors" data-panel="settings" title="設定">
                     <i data-lucide="settings" class="w-5 h-5"></i>
@@ -136,8 +151,18 @@
             </div>
         </div>
 
+        <!-- 読書モード解除ボタン (フローティング) -->
+        <button id="exit-reading-btn" onclick="ui.toggleReadingMode()" class="hidden absolute bottom-6 right-6 bg-slate-800/40 hover:bg-slate-800/80 text-white p-3 rounded-full shadow-lg backdrop-blur-sm z-40 transition-colors">
+            <i data-lucide="minimize" class="w-6 h-6"></i>
+        </button>
+
         <!-- プレイヤーコントロール -->
-        <div class="bg-white border-t border-slate-200 px-4 py-3 shrink-0 flex flex-col gap-2">
+        <div id="player-control-panel" class="bg-white border-t border-slate-200 px-4 py-3 shrink-0 flex flex-col gap-2">
+            <!-- テキスト量・時間情報 -->
+            <div class="flex justify-between px-1 -mb-1 text-[10px] text-slate-500 tracking-wider">
+                <span id="time-stats">00:00 / 00:00</span>
+                <span id="text-stats">0 / 0 文字</span>
+            </div>
             <!-- プログレスバー -->
             <div class="flex items-center gap-3">
                 <span id="progress-text" class="text-xs text-slate-500 w-12 text-right">0%</span>
@@ -192,7 +217,7 @@
 
         <!-- パネルコンテンツ: チャット -->
         <div id="panel-chat" class="flex-1 flex flex-col hidden overflow-hidden">
-            <div class="p-3 border-b border-slate-100 bg-blue-50 flex items-center justify-between text-xs shrink-0">
+            <div class="p-3 border-b border-slate-200 bg-slate-100 flex items-center justify-between text-xs shrink-0">
                 <label class="flex items-center gap-2 cursor-pointer text-slate-700 font-medium" title="現在読んでいる場所までをAIの知識とします">
                     <input type="checkbox" id="prevent-spoilers" checked class="w-4 h-4 text-blue-600 rounded" onchange="state.preventSpoilers = this.checked">
                     ネタバレ防止
@@ -238,6 +263,11 @@
                     <select id="voice-select" class="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500 bg-white"></select>
                 </div>
                 <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-1">GAS WebアプリURL (クラウド保存用)</label>
+                    <input type="text" id="setting-gas-url" class="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500" placeholder="https://script.google.com/macros/s/.../exec">
+                    <p class="text-xs text-slate-500 mt-1">設定すると進捗やメモ、テキストがクラウドに完全同期されます。</p>
+                </div>
+                <div>
                     <label class="block text-sm font-medium text-slate-700 mb-2">表示レイアウト</label>
                     <div class="flex items-center gap-4">
                         <label class="flex items-center gap-2 cursor-pointer">
@@ -268,7 +298,7 @@
                 <div>
                     <h4 class="text-sm font-medium text-slate-700 mb-2">ストレージ管理</h4>
                     <button onclick="app.clearDatabase()" class="w-full bg-red-50 text-red-600 border border-red-200 rounded py-2 hover:bg-red-100 transition-colors text-sm font-medium">
-                        全てのデータを削除
+                        全てのデータをクラウドから削除
                     </button>
                     <p class="text-xs text-red-400 mt-1 text-center">※復元できません</p>
                 </div>
@@ -294,13 +324,13 @@
                 </div>
                 <div id="processing-indicator" class="hidden flex items-center justify-center gap-3 text-blue-600 p-4 bg-blue-50 rounded border border-blue-100">
                     <div class="loader"></div>
-                    <span class="font-medium text-sm">テキストを解析・分割しています。長文の場合は数秒かかります...</span>
+                    <span class="font-medium text-sm">クラウドに保存しています。長文の場合は数秒かかります...</span>
                 </div>
             </div>
             <div class="p-4 border-t border-slate-200 bg-slate-50 rounded-b-lg flex justify-end gap-2">
                 <button onclick="ui.closeModal('add-book-modal')" class="px-4 py-2 rounded text-slate-600 hover:bg-slate-200 transition-colors text-sm font-medium">キャンセル</button>
                 <button onclick="app.processNewBook()" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors shadow-sm text-sm font-medium flex items-center gap-2">
-                    <i data-lucide="save" class="w-4 h-4"></i> 保存して追加
+                    <i data-lucide="cloud-upload" class="w-4 h-4"></i> 保存して追加
                 </button>
             </div>
         </div>
@@ -349,107 +379,85 @@
         settings: {
             apiKey: localStorage.getItem('ab_api_key') || apiKey,
             model: localStorage.getItem('ab_model') || "gemini-3.1-flash-lite-preview",
-            font: localStorage.getItem('ab_font') || 'sans'
+            font: localStorage.getItem('ab_font') || 'sans',
+            gasUrl: localStorage.getItem('ab_gas_url') || ""
         },
         mediaSessionInitialized: false
     };
 
     // ==========================================
-    // データベース管理 (IndexedDB)
+    // クラウドストレージ管理 (GAS)
     // ==========================================
-    const dbManager = {
-        dbName: 'AudioBookDB',
-        version: 1,
-        db: null,
-
-        async init() {
-            return new Promise((resolve, reject) => {
-                const request = indexedDB.open(this.dbName, this.version);
+    const cloudManager = {
+        async callCloud(action, payload = {}) {
+            if (!state.settings.gasUrl) {
+                throw new Error("GASのURLが設定されていません。");
+            }
+            const payloadString = JSON.stringify({ action: action, payload: payload });
+            
+            try {
+                // 完全クラウド化に伴い、GASからのレスポンスを正しく受け取るため text/plain でPOST
+                const response = await fetch(state.settings.gasUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'text/plain' },
+                    body: payloadString
+                });
                 
-                request.onupgradeneeded = (e) => {
-                    const db = e.target.result;
-                    if (!db.objectStoreNames.contains('books')) {
-                        db.createObjectStore('books', { keyPath: 'id' });
-                    }
-                    if (!db.objectStoreNames.contains('notes')) {
-                        const notesStore = db.createObjectStore('notes', { keyPath: 'id' });
-                        notesStore.createIndex('bookId', 'bookId', { unique: false });
-                    }
-                };
-
-                request.onsuccess = (e) => {
-                    this.db = e.target.result;
-                    resolve();
-                };
-                request.onerror = (e) => reject(e.target.error);
-            });
+                const data = await response.json();
+                if (data.status === 'error') throw new Error(data.message);
+                return data;
+            } catch (e) {
+                console.error("Cloud API Error:", e);
+                throw e;
+            }
         },
 
         async getBooks() {
-            return new Promise((resolve) => {
-                const tx = this.db.transaction('books', 'readonly');
-                const store = tx.objectStore('books');
-                const request = store.getAll();
-                request.onsuccess = () => {
-                    // 更新日の降順でソート
-                    const books = request.result.sort((a, b) => b.updatedAt - a.updatedAt);
-                    resolve(books);
-                };
-            });
+            try {
+                const res = await this.callCloud('getBooks');
+                return res.books ? res.books.sort((a, b) => b.updatedAt - a.updatedAt) : [];
+            } catch(e) {
+                console.warn("getBooks failed", e);
+                return [];
+            }
         },
 
-        async saveBook(book) {
-            book.updatedAt = Date.now();
-            return new Promise((resolve) => {
-                const tx = this.db.transaction('books', 'readwrite');
-                tx.objectStore('books').put(book);
-                tx.oncomplete = () => resolve(book);
-            });
+        async getBookText(fileId) {
+            const res = await this.callCloud('getBookText', { fileId });
+            return res.text || "";
+        },
+
+        async addBook(book) {
+            const res = await this.callCloud('addBook', book);
+            book.fileId = res.fileId;
+            delete book.text; // ローカルでのメモリ節約のため不要なプロパティを消す
+            return book;
+        },
+
+        async updateProgress(id, currentIndex, updatedAt) {
+            return this.callCloud('updateBookProgress', { id, currentIndex, updatedAt });
         },
 
         async deleteBook(id) {
-            return new Promise((resolve) => {
-                const tx = this.db.transaction(['books', 'notes'], 'readwrite');
-                tx.objectStore('books').delete(id);
-                // 関連ノートも削除
-                const notesStore = tx.objectStore('notes');
-                const index = notesStore.index('bookId');
-                const request = index.getAllKeys(id);
-                request.onsuccess = () => {
-                    request.result.forEach(noteId => notesStore.delete(noteId));
-                };
-                tx.oncomplete = () => resolve();
-            });
+            return this.callCloud('deleteBook', { id });
         },
 
         async getNotes(bookId) {
-            return new Promise((resolve) => {
-                const tx = this.db.transaction('notes', 'readonly');
-                const index = tx.objectStore('notes').index('bookId');
-                const request = index.getAll(bookId);
-                request.onsuccess = () => {
-                    // 作成順（インデックス順）でソート
-                    const notes = request.result.sort((a, b) => a.sentenceIndex - b.sentenceIndex);
-                    resolve(notes);
-                };
-            });
+            try {
+                const res = await this.callCloud('getNotes', { bookId });
+                return res.notes ? res.notes.sort((a, b) => a.sentenceIndex - b.sentenceIndex) : [];
+            } catch(e) {
+                console.warn("getNotes failed", e);
+                return [];
+            }
         },
 
         async saveNote(note) {
-            return new Promise((resolve) => {
-                const tx = this.db.transaction('notes', 'readwrite');
-                tx.objectStore('notes').put(note);
-                tx.oncomplete = () => resolve(note);
-            });
+            return this.callCloud('saveNote', note);
         },
-        
+
         async clearAll() {
-             return new Promise((resolve) => {
-                const tx = this.db.transaction(['books', 'notes'], 'readwrite');
-                tx.objectStore('books').clear();
-                tx.objectStore('notes').clear();
-                tx.oncomplete = () => resolve();
-            });
+            return this.callCloud('clearAll');
         }
     };
 
@@ -519,6 +527,8 @@
             this.synth.cancel(); // 念のためキャンセル
 
             const book = state.currentBook;
+            // sentencesがまだロードされていない場合は中断
+            if (!book.sentences) return;
             const text = book.sentences[book.currentIndex];
 
             // 空白や改行のみの要素はスキップ
@@ -563,11 +573,19 @@
             }, 50);
         },
 
+        // 進捗を裏側でGASに同期する（投げっぱなし）
+        saveProgressBackground() {
+            const b = state.currentBook;
+            if (!b) return;
+            b.updatedAt = Date.now();
+            cloudManager.updateProgress(b.id, b.currentIndex, b.updatedAt).catch(e => console.log("Progress sync error", e));
+        },
+
         advanceToNext() {
             const book = state.currentBook;
-            if (book.currentIndex < book.sentences.length - 1) {
+            if (book.sentences && book.currentIndex < book.sentences.length - 1) {
                 book.currentIndex++;
-                dbManager.saveBook(book); // 進捗保存
+                this.saveProgressBackground(); // クラウドに自動保存
                 ui.updateProgressBar();
                 this.speakCurrent(); // 次を再生
             } else {
@@ -577,10 +595,11 @@
         },
 
         next() {
-            if (!state.currentBook) return;
-            if (state.currentBook.currentIndex < state.currentBook.sentences.length - 1) {
-                state.currentBook.currentIndex++;
-                dbManager.saveBook(state.currentBook);
+            const book = state.currentBook;
+            if (!book || !book.sentences) return;
+            if (book.currentIndex < book.sentences.length - 1) {
+                book.currentIndex++;
+                this.saveProgressBackground(); // クラウドに自動保存
                 ui.updateProgressBar();
                 ui.renderTextWindow();
                 if (this.isPlaying) this.speakCurrent();
@@ -588,10 +607,11 @@
         },
 
         prev() {
-            if (!state.currentBook) return;
-            if (state.currentBook.currentIndex > 0) {
-                state.currentBook.currentIndex--;
-                dbManager.saveBook(state.currentBook);
+            const book = state.currentBook;
+            if (!book || !book.sentences) return;
+            if (book.currentIndex > 0) {
+                book.currentIndex--;
+                this.saveProgressBackground(); // クラウドに自動保存
                 ui.updateProgressBar();
                 ui.renderTextWindow();
                 if (this.isPlaying) this.speakCurrent();
@@ -599,10 +619,11 @@
         },
 
         jumpTo(index) {
-            if (!state.currentBook) return;
-            if (index >= 0 && index < state.currentBook.sentences.length) {
-                state.currentBook.currentIndex = index;
-                dbManager.saveBook(state.currentBook);
+            const book = state.currentBook;
+            if (!book || !book.sentences) return;
+            if (index >= 0 && index < book.sentences.length) {
+                book.currentIndex = index;
+                this.saveProgressBackground(); // クラウドに自動保存
                 ui.updateProgressBar();
                 ui.renderTextWindow();
                 if (this.isPlaying) this.speakCurrent();
@@ -610,10 +631,15 @@
         },
 
         seekBySlider(val) {
-            if (!state.currentBook) return;
-            const total = state.currentBook.sentences.length;
+            const book = state.currentBook;
+            if (!book || !book.sentences) return;
+            const total = book.sentences.length;
             const targetIndex = Math.floor(total * (val / 100));
-            state.currentBook.currentIndex = Math.min(Math.max(0, targetIndex), total - 1);
+            book.currentIndex = Math.min(Math.max(0, targetIndex), total - 1);
+            
+            // シークが終わった時点で保存
+            this.saveProgressBackground(); 
+            
             ui.updateProgressBar();
             ui.renderTextWindow();
             
@@ -625,6 +651,7 @@
 
         setRate(rateStr) {
             this.rate = parseFloat(rateStr);
+            ui.updateProgressBar(); // 速度変更に伴う時間の再計算
             if (this.isPlaying) {
                 this.speakCurrent(); // 現在の文から速度を適用して再開
             }
@@ -656,7 +683,7 @@
             e.preventDefault();
             const input = document.getElementById('chat-input');
             const text = input.value.trim();
-            if (!text || !state.currentBook) return;
+            if (!text || !state.currentBook || !state.currentBook.sentences) return;
 
             const apiKeyToUse = state.settings.apiKey;
             if (!apiKeyToUse) {
@@ -745,23 +772,20 @@
             // 設定フォームの初期化
             document.getElementById('setting-api-key').value = state.settings.apiKey;
             document.getElementById('setting-model').value = state.settings.model;
+            document.getElementById('setting-gas-url').value = state.settings.gasUrl;
             document.getElementById('chat-model-label').textContent = state.settings.model.split('-').slice(1,3).join(' ');
 
             const voiceSelect = document.getElementById('voice-select');
             const updateVoices = () => {
                 let voices = window.speechSynthesis.getVoices();
+                // 実際にその端末・ブラウザで使える日本語音声のみを抽出
                 let japaneseVoices = voices.filter(v => v.lang.includes('ja'));
-                
-                const targetNames = ['ja-jp-x-jab-local', 'ja-jp-x-jab-network', 'ja-jp-x-jac-local', 'ja-jp-x-jac-network'];
-                targetNames.forEach(name => {
-                    if (!japaneseVoices.find(v => v.name === name)) {
-                        japaneseVoices.push({ name: name, lang: 'ja-JP', voiceURI: name });
-                    }
-                });
 
                 const savedVoice = localStorage.getItem('ab_voice_name');
+                
+                // 確実に音声を特定できるように、valueには固有の「voiceURI」を使用
                 voiceSelect.innerHTML = japaneseVoices.map(v => 
-                    `<option value="${v.name}" ${savedVoice === v.name ? 'selected' : ''}>${v.name}</option>`
+                    `<option value="${v.voiceURI}" ${savedVoice === v.voiceURI ? 'selected' : ''}>${v.name}</option>`
                 ).join('');
             };
             window.speechSynthesis.onvoiceschanged = updateVoices;
@@ -803,13 +827,30 @@
             document.getElementById('icon-dark').classList.toggle('hidden', theme !== 'dark');
         },
 
+        toggleReadingMode() {
+            const mainContent = document.getElementById('main-content');
+            const exitBtn = document.getElementById('exit-reading-btn');
+            
+            mainContent.classList.toggle('reading-mode');
+            
+            if (mainContent.classList.contains('reading-mode')) {
+                exitBtn.classList.remove('hidden');
+            } else {
+                exitBtn.classList.add('hidden');
+            }
+            lucide.createIcons();
+        },
+
         async loadInitialData() {
-            state.books = await dbManager.getBooks();
+            document.getElementById('book-list-container').innerHTML = '<div class="text-slate-400 text-sm p-4 text-center flex flex-col items-center"><div class="loader mb-2"></div>クラウドから同期中...</div>';
+            state.books = await cloudManager.getBooks();
             this.renderBookList();
             
             if (state.books.length > 0) {
                 // 最も最近更新された本をロード
                 app.selectBook(state.books[0].id);
+            } else {
+                document.getElementById('book-list-container').innerHTML = '<div class="text-slate-400 text-sm p-4 text-center">クラウドに本がありません。追加してください。</div>';
             }
         },
 
@@ -824,8 +865,10 @@
 
             state.books.forEach(book => {
                 const isActive = state.currentBook && state.currentBook.id === book.id;
-                const progress = book.sentences.length > 0 
-                    ? Math.floor((book.currentIndex / book.sentences.length) * 100) : 0;
+                // sentencesがまだダウンロードされていない場合の考慮
+                const totalSentences = book.totalSentences || (book.sentences ? book.sentences.length : 1);
+                const progress = totalSentences > 0 
+                    ? Math.floor((book.currentIndex / totalSentences) * 100) : 0;
                 
                 const div = document.createElement('div');
                 div.className = `p-3 mb-2 rounded cursor-pointer transition-colors border-l-4 group flex justify-between items-center ${isActive ? 'bg-blue-50 border-blue-500 shadow-sm' : 'bg-white border-transparent hover:bg-slate-100 border-slate-200'}`;
@@ -838,12 +881,47 @@
                 title.className = `font-medium truncate text-sm ${isActive ? 'text-blue-800' : 'text-slate-700'}`;
                 title.textContent = book.title;
                 
+                // 文字数と時間の計算（リスト用）※テキストダウンロード済みの場合のみ正確に表示
+                let statsHtml = '';
+                if (book.sentences) {
+                    const totalChars = book.sentences.join('').length;
+                    const readChars = book.sentences.slice(0, book.currentIndex).join('').length;
+                    const remainingChars = totalChars - readChars;
+                    const charsPerSecond = 6 * player.rate; 
+                    const totalSeconds = totalChars / charsPerSecond;
+                    const remainingSeconds = remainingChars / charsPerSecond;
+
+                    const formatTime = (secs) => {
+                        if (!isFinite(secs)) return "00:00";
+                        const h = Math.floor(secs / 3600);
+                        const m = Math.floor((secs % 3600) / 60);
+                        const s = Math.floor(secs % 60);
+                        if (h > 0) return `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+                        return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+                    };
+
+                    statsHtml = `
+                        <div>残 ${formatTime(remainingSeconds)} / 全 ${formatTime(totalSeconds)}</div>
+                        <div>${readChars.toLocaleString()} / ${totalChars.toLocaleString()} 文字</div>
+                    `;
+                } else {
+                    statsHtml = `
+                        <div>進捗: ${progress}%</div>
+                        <div>(タップして本文をクラウドから取得)</div>
+                    `;
+                }
+
+                const statsText = document.createElement('div');
+                statsText.className = 'text-[10px] text-slate-400 mt-1.5 flex flex-col gap-0.5 tracking-wider';
+                statsText.innerHTML = statsHtml;
+
                 const progText = document.createElement('div');
                 progText.className = 'text-xs text-slate-500 mt-1 flex items-center gap-2';
                 progText.innerHTML = `<div class="w-16 h-1.5 bg-slate-200 rounded-full overflow-hidden"><div class="h-full bg-blue-400" style="width: ${progress}%"></div></div> ${progress}%`;
                 
                 infoDiv.appendChild(title);
                 infoDiv.appendChild(progText);
+                infoDiv.appendChild(statsText); // タイトルとプログレスバーの下に追加
                 div.appendChild(infoDiv);
                 
                 // 削除ボタン
@@ -852,7 +930,7 @@
                 delBtn.innerHTML = '<i data-lucide="trash-2" class="w-4 h-4"></i>';
                 delBtn.onclick = (e) => {
                     e.stopPropagation();
-                    if(confirm(`「${book.title}」を削除しますか？`)) app.deleteBook(book.id);
+                    if(confirm(`「${book.title}」を削除しますか？\n（クラウドのファイルも削除されます）`)) app.deleteBook(book.id);
                 };
                 div.appendChild(delBtn);
 
@@ -863,7 +941,7 @@
 
         renderTextWindow() {
             const container = document.getElementById('text-content');
-            if (!state.currentBook) {
+            if (!state.currentBook || !state.currentBook.sentences) {
                 container.innerHTML = '<div class="h-full flex items-center justify-center text-slate-400 mt-20">左のメニューから本を選択するか、新しく追加してください。</div>';
                 document.getElementById('header-book-title').textContent = "本を選択してください";
                 return;
@@ -875,12 +953,12 @@
             state.currentBook.sentences.forEach((text, i) => {
                 const span = document.createElement('span');
                 span.textContent = text;
-                span.className = 'sentence-span inline-block p-1 rounded cursor-pointer transition-colors hover:bg-blue-100';
+                span.className = 'sentence-span inline-block p-1 rounded cursor-pointer transition-colors sentence-hover';
                 span.dataset.index = i;
                 span.onclick = () => player.jumpTo(i);
 
                 if (i === state.currentBook.currentIndex) {
-                    span.classList.add('bg-yellow-200', 'font-bold', 'text-slate-900', 'shadow-sm', 'id-current');
+                    span.classList.add('sentence-highlight', 'id-current');
                     span.id = 'current-sentence';
                 }
                 container.appendChild(span);
@@ -892,7 +970,7 @@
         },
 
         updateProgressBar() {
-            if (!state.currentBook) return;
+            if (!state.currentBook || !state.currentBook.sentences) return;
             const book = state.currentBook;
             const total = book.sentences.length;
             const current = book.currentIndex;
@@ -904,6 +982,35 @@
                 slider.value = percentage;
             }
             document.getElementById('progress-text').textContent = `${Math.floor(percentage)}%`;
+
+            // 文字数と時間の計算
+            const totalChars = book.sentences.join('').length;
+            const readChars = book.sentences.slice(0, current).join('').length;
+            const remainingChars = totalChars - readChars;
+
+            // 1秒あたりの平均文字数 (標準速度で約6文字/秒と仮定)
+            const charsPerSecond = 6 * player.rate;
+            
+            const totalSeconds = totalChars / charsPerSecond;
+            const remainingSeconds = remainingChars / charsPerSecond;
+
+            const formatTime = (secs) => {
+                if (!isFinite(secs)) return "00:00";
+                const h = Math.floor(secs / 3600);
+                const m = Math.floor((secs % 3600) / 60);
+                const s = Math.floor(secs % 60);
+                if (h > 0) return `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+                return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+            };
+
+            const timeStatsEl = document.getElementById('time-stats');
+            const textStatsEl = document.getElementById('text-stats');
+            if (timeStatsEl) {
+                timeStatsEl.textContent = `残 ${formatTime(remainingSeconds)} / 全 ${formatTime(totalSeconds)}`;
+            }
+            if (textStatsEl) {
+                textStatsEl.textContent = `${readChars.toLocaleString()} / ${totalChars.toLocaleString()} 文字`;
+            }
         },
 
         updatePlayerControls() {
@@ -974,7 +1081,7 @@
             modal.classList.remove('hidden');
             
             // メモ追加モーダル特有の処理
-            if (id === 'add-note-modal' && state.currentBook) {
+            if (id === 'add-note-modal' && state.currentBook && state.currentBook.sentences) {
                  const book = state.currentBook;
                  const textPreview = book.sentences[book.currentIndex] || "テキストがありません";
                  document.getElementById('note-context-preview').textContent = textPreview;
@@ -1052,9 +1159,10 @@
                 const header = document.createElement('div');
                 header.className = 'flex justify-between items-start mb-2';
                 
+                const totalSentences = state.currentBook.sentences ? state.currentBook.sentences.length : state.currentBook.totalSentences;
                 const badge = document.createElement('span');
                 badge.className = 'text-[10px] font-medium bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded';
-                badge.innerHTML = `<i data-lucide="map-pin" class="w-3 h-3 inline mr-0.5"></i> ${Math.floor((note.sentenceIndex / state.currentBook.sentences.length)*100)}% 地点`;
+                badge.innerHTML = `<i data-lucide="map-pin" class="w-3 h-3 inline mr-0.5"></i> ${Math.floor((note.sentenceIndex / totalSentences)*100)}% 地点`;
                 
                 const date = document.createElement('span');
                 date.className = 'text-[10px] text-slate-400';
@@ -1122,12 +1230,17 @@
             if (savedLayout === 'vertical') {
                 document.getElementById('text-view-container').classList.add('writing-mode-vertical');
             }
+            
             try {
-                await dbManager.init();
-                await ui.loadInitialData();
+                if (state.settings.gasUrl) {
+                    await ui.loadInitialData();
+                } else {
+                    document.getElementById('text-content').innerHTML = '<div class="h-full flex flex-col items-center justify-center text-slate-400 mt-20 gap-3"><i data-lucide="cloud-off" class="w-12 h-12 opacity-50"></i><span>クラウド保存用のGAS URLが設定されていません。</span><button onclick="ui.toggleRightPanel(\'settings\')" class="px-4 py-2 bg-blue-100 text-blue-600 rounded hover:bg-blue-200 transition-colors">設定を開く</button></div>';
+                    lucide.createIcons();
+                }
             } catch (e) {
-                console.error("DB Initialization failed:", e);
-                alert("データベースの初期化に失敗しました。プライベートブラウズ等の制限を確認してください。");
+                console.error("Initialization failed:", e);
+                alert("クラウドとの通信に失敗しました。URLが正しいか確認してください。");
             }
         },
 
@@ -1138,29 +1251,49 @@
             // 以前の再生を停止
             player.pause();
 
-            state.currentBook = book;
-            ui.updateMediaSession(book.title);
-            // メモをロード
-            state.notes = await dbManager.getNotes(bookId);
+            // ダウンロード中のUI表示
+            const textContainer = document.getElementById('text-content');
+            textContainer.innerHTML = '<div class="h-full flex flex-col items-center justify-center text-slate-400 mt-20"><div class="loader mb-4"></div>本文をクラウドからダウンロードしています...</div>';
+            document.getElementById('header-book-title').textContent = "読み込み中...";
 
-            // UI更新
-            ui.renderBookList();
-            ui.renderTextWindow();
-            ui.updateProgressBar();
-            ui.updatePlayerControls();
-            
-            if (state.activePanel === 'notes') ui.renderNotes();
+            try {
+                // 本文をクラウド(Drive)からダウンロード
+                const rawText = await cloudManager.getBookText(book.fileId);
+                // 文に分割
+                const sentences = rawText.match(/[^。！？\n]+[。！？\n]*/g) || [rawText];
+                book.sentences = sentences.filter(s => s.trim().length > 0);
 
-            // モバイルの場合、本を選択したらサイドバーを閉じる
-            if (window.innerWidth < 768) {
-                document.getElementById('sidebar').classList.add('-translate-x-full');
+                state.currentBook = book;
+                ui.updateMediaSession(book.title);
+                
+                // メモをロード
+                state.notes = await cloudManager.getNotes(bookId);
+
+                // UI更新
+                ui.renderBookList();
+                ui.renderTextWindow();
+                ui.updateProgressBar();
+                ui.updatePlayerControls();
+                
+                if (state.activePanel === 'notes') ui.renderNotes();
+
+                // モバイルの場合、本を選択したらサイドバーを閉じる
+                if (window.innerWidth < 768) {
+                    document.getElementById('sidebar').classList.add('-translate-x-full');
+                }
+                
+                // チャット履歴クリア (本が変わったため)
+                document.getElementById('chat-messages').innerHTML = '<div class="text-center text-xs text-slate-400 my-4">AIアシスタントに要約や質問ができます</div>';
+            } catch(e) {
+                console.error("Text download failed", e);
+                textContainer.innerHTML = '<div class="text-red-500 text-center mt-20">本文のダウンロードに失敗しました。</div>';
+                document.getElementById('header-book-title').textContent = "エラー";
             }
-            
-            // チャット履歴クリア (本が変わったため)
-            document.getElementById('chat-messages').innerHTML = '<div class="text-center text-xs text-slate-400 my-4">AIアシスタントに要約や質問ができます</div>';
         },
 
         async processNewBook() {
+            if (!state.settings.gasUrl) { alert("設定からGAS URLを入力してください。"); return; }
+            
             const titleInput = document.getElementById('new-book-title');
             const textInput = document.getElementById('new-book-text');
             const title = titleInput.value.trim();
@@ -1173,59 +1306,61 @@
             document.getElementById('processing-indicator').classList.remove('hidden');
             document.querySelectorAll('#add-book-modal button').forEach(b => b.disabled = true);
 
-            // 重い分割処理を非同期にしてUIフリーズを回避
-            setTimeout(async () => {
-                try {
-                    // 日本語の文単位で分割する正規表現 (改行も区切りとする)
-                    // 「。」「！」「？」「\n」などで分割。分割記号は残す。
-                    const sentences = text.match(/[^。！？\n]+[。！？\n]*/g) || [text];
-                    
-                    // 空白だけの要素を除去し、トリム
-                    const cleanSentences = sentences
-                        .map(s => s.trim())
-                        .filter(s => s.length > 0);
+            try {
+                // 日本語の文単位で分割する正規表現 (改行も区切りとする)
+                const sentences = text.match(/[^。！？\n]+[。！？\n]*/g) || [text];
+                const cleanSentences = sentences.filter(s => s.trim().length > 0);
 
-                    const newBook = {
-                        id: crypto.randomUUID(),
-                        title: title,
-                        text: text, // 全文も一応保存（重ければ削除も検討）
-                        sentences: cleanSentences,
-                        currentIndex: 0,
-                        createdAt: Date.now(),
-                        updatedAt: Date.now()
-                    };
+                const newBook = {
+                    id: crypto.randomUUID(),
+                    title: title,
+                    text: text, // クラウドに送るためのテキスト全体
+                    currentIndex: 0,
+                    totalSentences: cleanSentences.length,
+                    createdAt: Date.now(),
+                    updatedAt: Date.now()
+                };
 
-                    await dbManager.saveBook(newBook);
-                    state.books = await dbManager.getBooks(); // 再取得してソート
-                    
-                    // リセット
-                    titleInput.value = '';
-                    textInput.value = '';
-                    ui.closeModal('add-book-modal');
-                    
-                    ui.renderBookList();
-                    this.selectBook(newBook.id);
+                // クラウド(GAS)に保存 (Driveにテキスト、SSにリスト)
+                const savedBook = await cloudManager.addBook(newBook);
+                
+                // ローカル状態に追加
+                savedBook.sentences = cleanSentences; // ローカル用にセットしておく
+                state.books.unshift(savedBook); // リストの先頭に追加
+                state.books.sort((a, b) => b.updatedAt - a.updatedAt);
+                
+                // リセット
+                titleInput.value = '';
+                textInput.value = '';
+                ui.closeModal('add-book-modal');
+                
+                ui.renderBookList();
+                this.selectBook(savedBook.id);
 
-                } catch (e) {
-                    console.error("Book Save Error", e);
-                    alert("保存に失敗しました。容量が大きすぎる可能性があります。");
-                } finally {
-                    document.getElementById('processing-indicator').classList.add('hidden');
-                    document.querySelectorAll('#add-book-modal button').forEach(b => b.disabled = false);
-                }
-            }, 50);
+            } catch (e) {
+                console.error("Book Save Error", e);
+                alert("保存に失敗しました。URLが正しいか、権限が許可されているか確認してください。");
+            } finally {
+                document.getElementById('processing-indicator').classList.add('hidden');
+                document.querySelectorAll('#add-book-modal button').forEach(b => b.disabled = false);
+            }
         },
 
         async deleteBook(id) {
-            await dbManager.deleteBook(id);
-            state.books = state.books.filter(b => b.id !== id);
-            if (state.currentBook && state.currentBook.id === id) {
-                state.currentBook = null;
-                player.pause();
-                ui.renderTextWindow();
-                ui.updateProgressBar();
+            try {
+                await cloudManager.deleteBook(id);
+                state.books = state.books.filter(b => b.id !== id);
+                if (state.currentBook && state.currentBook.id === id) {
+                    state.currentBook = null;
+                    player.pause();
+                    ui.renderTextWindow();
+                    ui.updateProgressBar();
+                }
+                ui.renderBookList();
+            } catch (e) {
+                console.error("Delete Error", e);
+                alert("削除に失敗しました。");
             }
-            ui.renderBookList();
         },
 
         updateFont() {
@@ -1250,7 +1385,7 @@
         },
 
         async saveNote() {
-            if (!state.currentBook) return;
+            if (!state.currentBook || !state.currentBook.sentences) return;
             const textInput = document.getElementById('new-note-text');
             const text = textInput.value.trim();
             if (!text) return;
@@ -1265,18 +1400,23 @@
                 createdAt: Date.now()
             };
 
-            await dbManager.saveNote(note);
-            state.notes.push(note);
-            // ソート
-            state.notes.sort((a, b) => a.sentenceIndex - b.sentenceIndex);
-            
-            ui.closeModal('add-note-modal');
-            
-            // メモパネルが開いていれば更新、開いていなければ開く
-            if (state.activePanel !== 'notes') {
-                ui.toggleRightPanel('notes');
-            } else {
-                ui.renderNotes();
+            try {
+                await cloudManager.saveNote(note);
+                state.notes.push(note);
+                // ソート
+                state.notes.sort((a, b) => a.sentenceIndex - b.sentenceIndex);
+                
+                ui.closeModal('add-note-modal');
+                
+                // メモパネルが開いていれば更新、開いていなければ開く
+                if (state.activePanel !== 'notes') {
+                    ui.toggleRightPanel('notes');
+                } else {
+                    ui.renderNotes();
+                }
+            } catch(e) {
+                console.error("Note Save Error", e);
+                alert("メモの保存に失敗しました。");
             }
         },
 
@@ -1284,14 +1424,24 @@
             const key = document.getElementById('setting-api-key').value.trim();
             const model = document.getElementById('setting-model').value.trim() || "gemini-3.1-flash-lite-preview";
             const voice = document.getElementById('voice-select').value;
+            const gasUrl = document.getElementById('setting-gas-url').value.trim();
+            
+            const oldUrl = state.settings.gasUrl;
             
             state.settings.apiKey = key;
             state.settings.model = model;
+            state.settings.gasUrl = gasUrl; 
             
             localStorage.setItem('ab_api_key', key);
             localStorage.setItem('ab_model', model);
             localStorage.setItem('ab_voice_name', voice);
+            localStorage.setItem('ab_gas_url', gasUrl); 
             app.updateFont();
+            
+            // 初めてURLが設定された場合、データをロードする
+            if (!oldUrl && gasUrl) {
+                ui.loadInitialData();
+            }
             
             if (player.isPlaying) {
                 player.speakCurrent(); 
@@ -1310,17 +1460,22 @@
         },
         
         async clearDatabase() {
-            if(confirm("本当に全てのオーディオブックとメモを削除しますか？\nこの操作は取り消せません。")) {
-                await dbManager.clearAll();
-                state.books = [];
-                state.currentBook = null;
-                state.notes = [];
-                player.pause();
-                ui.renderBookList();
-                ui.renderTextWindow();
-                ui.updateProgressBar();
-                if(state.activePanel === 'notes') ui.renderNotes();
-                alert("全てのデータを削除しました。");
+            if(confirm("本当に全てのオーディオブックとメモを削除しますか？\n（クラウド上のデータも完全に消去されます）")) {
+                try {
+                    await cloudManager.clearAll();
+                    state.books = [];
+                    state.currentBook = null;
+                    state.notes = [];
+                    player.pause();
+                    ui.renderBookList();
+                    ui.renderTextWindow();
+                    ui.updateProgressBar();
+                    if(state.activePanel === 'notes') ui.renderNotes();
+                    alert("全てのデータをクラウドから削除しました。");
+                } catch(e) {
+                    console.error("Clear Error", e);
+                    alert("削除に失敗しました。");
+                }
             }
         }
     };
@@ -1335,5 +1490,3 @@
 </script>
 </body>
 </html>
-
-
