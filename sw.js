@@ -1,26 +1,23 @@
-const CACHE_NAME = 'audiobook-cache-v1';
+const CACHE_NAME = 'audiobook-cache-v2';
 const urlsToCache = [
+  './',
   './index.html',
   './manifest.json'
 ];
 
-// インストール時にキャッシュを保存
 self.addEventListener('install', event => {
   event.waitUntil(
-    caches.open(CACHE_NAME)
-      .then(cache => {
-        return cache.addAll(urlsToCache);
-      })
+    caches.open(CACHE_NAME).then(cache => cache.addAll(urlsToCache))
   );
 });
 
-// ネットワークリクエスト時のキャッシュ利用
 self.addEventListener('fetch', event => {
   event.respondWith(
-    caches.match(event.request)
-      .then(response => {
-        // キャッシュがあればそれを返し、なければネットワークから取得
-        return response || fetch(event.request);
-      })
+    caches.match(event.request).then(response => {
+      return response || fetch(event.request);
+    }).catch(() => {
+      // オフライン時にエラーを出さないためのフォールバック
+      return new Response('Offline');
+    })
   );
 });
