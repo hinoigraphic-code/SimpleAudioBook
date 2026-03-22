@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>AI オーディオブックプレイヤー</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
@@ -78,9 +78,20 @@
         .text-slate-500 { color: var(--text-sub) !important; }
         input, textarea, select { background-color: var(--bg) !important; color: var(--text) !important; border-color: var(--border) !important; }
         .accent-blue-600 { accent-color: var(--accent) !important; }
+
+        /* セーフエリア対応（ナビゲーションバー被り防止） */
+        #player-control-panel {
+            padding-bottom: calc(0.75rem + env(safe-area-inset-bottom)) !important;
+        }
+        #exit-reading-btn {
+            bottom: calc(1.5rem + env(safe-area-inset-bottom)) !important;
+        }
+        #sidebar, #right-panel {
+            padding-bottom: env(safe-area-inset-bottom);
+        }
     </style>
 </head>
-<body class="bg-slate-50 text-slate-800 h-screen flex overflow-hidden font-sans text-sm md:text-base dark:bg-slate-900 dark:text-slate-100">
+<body class="bg-slate-50 text-slate-800 h-[100dvh] flex overflow-hidden font-sans text-sm md:text-base dark:bg-slate-900 dark:text-slate-100">
 
     <!-- サイドバー: 本のリスト -->
     <aside id="sidebar" class="w-64 bg-white border-r border-slate-200 flex flex-col z-20 transition-transform transform -translate-x-full md:translate-x-0 absolute md:relative h-full">
