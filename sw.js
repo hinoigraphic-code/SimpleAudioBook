@@ -1,4 +1,4 @@
-const CACHE_NAME = 'audiobook-cache-v2';
+const CACHE_NAME = 'audiobook-cache-v3';
 const urlsToCache = [
   './',
   './index.html',
