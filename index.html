@@ -506,6 +506,7 @@
         rate: 1.0,
         keepAliveTimer: null,
         wakeLock: null,
+        currentSpeakSession: 0, // 非同期の音声キュー管理用ID
 
         // 自動スリープ防止機能をリクエストする
         async requestWakeLock() {
@@ -606,6 +607,9 @@
         speakCurrent() {
             if (!this.isPlaying) return;
             this.synth.cancel(); // 念のためキャンセル
+            
+            this.currentSpeakSession++;
+            const sessionId = this.currentSpeakSession;
 
             const book = state.currentBook;
             // sentencesがまだロードされていない場合は中断
@@ -618,40 +622,69 @@
                 return;
             }
 
-            this.utterance = new SpeechSynthesisUtterance(text);
-            this.utterance.lang = 'ja-JP';
-            this.utterance.rate = this.rate;
-            
-            // 音声設定の適用
-            const voiceName = localStorage.getItem('ab_voice_name');
-            const voices = this.synth.getVoices();
-            const selectedVoice = voices.find(v => v.name === voiceName || v.voiceURI === voiceName);
-            if (selectedVoice) {
-                this.utterance.voice = selectedVoice;
-            }
+            // --- 長文途切れ対策：内部でさらに細かく分割 ---
+            // 見た目のハイライト単位が長くても、音声エンジンには細かく渡して「15秒強制停止バグ」を回避する
+            const subSentences = text.match(/[^。！？\n]+[。！？\n]*/g) || [text];
+            let subIndex = 0;
 
-            this.utterance.onend = (e) => {
-                // キャンセルによる終了でなく、自然終了の場合のみ次へ
-                if (this.isPlaying && e.type === 'end') {
+            const playSubSentence = () => {
+                if (!this.isPlaying || this.currentSpeakSession !== sessionId) return;
+
+                if (subIndex >= subSentences.length) {
+                    // 全ての細かい文を読み終えたら、次の大チャンクへ進む
                     this.advanceToNext();
+                    return;
                 }
+
+                const subText = subSentences[subIndex];
+                if (!subText || !subText.trim().replace(/[\n\r]/g, '')) {
+                    subIndex++;
+                    playSubSentence();
+                    return;
+                }
+
+                this.utterance = new SpeechSynthesisUtterance(subText);
+                this.utterance.lang = 'ja-JP';
+                this.utterance.rate = this.rate;
+                
+                // 音声設定の適用
+                const voiceName = localStorage.getItem('ab_voice_name');
+                const voices = this.synth.getVoices();
+                const selectedVoice = voices.find(v => v.name === voiceName || v.voiceURI === voiceName);
+                if (selectedVoice) {
+                    this.utterance.voice = selectedVoice;
+                }
+
+                this.utterance.onend = (e) => {
+                    // キャンセルによる終了でなく、自然終了の場合のみ次へ
+                    if (this.isPlaying && this.currentSpeakSession === sessionId && e.type === 'end') {
+                        subIndex++;
+                        playSubSentence();
+                    }
+                };
+
+                this.utterance.onerror = (e) => {
+                    console.warn("Speech Error or Canceled:", e);
+                    // 意図的なキャンセルでなければ停止
+                    if (this.isPlaying && this.currentSpeakSession === sessionId && e.error !== 'canceled' && e.error !== 'interrupted') {
+                        this.pause();
+                    }
+                };
+
+                // UI更新してスクロールさせる（大チャンクの最初だけ実行）
+                if (subIndex === 0) {
+                    ui.renderTextWindow();
+                }
+                
+                // バグ回避のための遅延発火
+                setTimeout(() => {
+                    if(this.isPlaying && this.currentSpeakSession === sessionId) {
+                        this.synth.speak(this.utterance);
+                    }
+                }, 50);
             };
 
-            this.utterance.onerror = (e) => {
-                console.warn("Speech Error or Canceled:", e);
-                // 意図的なキャンセルでなければ停止
-                if (this.isPlaying) {
-                    this.pause();
-                }
-            };
-
-            // 読み上げ前にUI更新してスクロールさせる
-            ui.renderTextWindow();
-            
-            // バグ回避のための遅延発火 (Safariなどで連続再生が止まる問題への対策)
-            setTimeout(() => {
-                if(this.isPlaying) this.synth.speak(this.utterance);
-            }, 50);
+            playSubSentence();
         },
 
         // 進捗を裏側でGASに同期する（投げっぱなし）
