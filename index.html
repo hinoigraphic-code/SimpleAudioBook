@@ -102,6 +102,9 @@
 </head>
 <body class="bg-slate-50 text-slate-800 h-[100dvh] flex overflow-hidden font-sans text-sm md:text-base dark:bg-slate-900 dark:text-slate-100">
 
+    <!-- バックグラウンド維持用の無音オーディオ（実体としてDOMに配置） -->
+    <audio id="silent-audio" loop src="data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA" class="hidden"></audio>
+
     <!-- サイドバー: 本のリスト -->
     <aside id="sidebar" class="w-64 bg-white border-r border-slate-200 flex flex-col z-20 transition-transform transform -translate-x-full md:translate-x-0 absolute md:relative h-full">
         <div class="p-4 border-b border-slate-200 flex justify-between items-center bg-slate-100">
@@ -489,8 +492,33 @@
         utterance: null,
         isPlaying: false,
         rate: 1.0,
-        // バックグラウンド再生維持のための無音オーディオ
-        silentAudio: new Audio('data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA'),
+        keepAliveTimer: null,
+        wakeLock: null,
+
+        // 自動スリープ防止機能をリクエストする
+        async requestWakeLock() {
+            if ('wakeLock' in navigator) {
+                try {
+                    this.wakeLock = await navigator.wakeLock.request('screen');
+                    this.wakeLock.addEventListener('release', () => {
+                        console.log('スリープ防止が解除されました');
+                    });
+                    console.log('スリープ防止がアクティブになりました');
+                } catch (err) {
+                    console.error('WakeLock Error:', err.name, err.message);
+                }
+            }
+        },
+
+        // 自動スリープ防止機能を解除する
+        releaseWakeLock() {
+            if (this.wakeLock !== null) {
+                this.wakeLock.release()
+                    .then(() => {
+                        this.wakeLock = null;
+                    });
+            }
+        },
 
         togglePlay() {
             if (!state.currentBook) {
@@ -514,14 +542,28 @@
             
             this.isPlaying = true;
             
-            // バックグラウンド維持のため無音オーディオをループ再生
-            this.silentAudio.loop = true;
-            this.silentAudio.play().catch(e => console.log("無音オーディオの再生に失敗:", e));
+            // ① DOM上の無音オーディオを再生し、ブラウザを「メディア再生中」と強く誤認させる
+            const silentEl = document.getElementById('silent-audio');
+            if (silentEl) {
+                silentEl.play().catch(e => console.log("無音オーディオの再生に失敗:", e));
+            }
 
             // スマホやイヤホンに「再生中」であることを明示的に伝える
             if ('mediaSession' in navigator) {
                 navigator.mediaSession.playbackState = 'playing';
             }
+
+            // ② 14秒ハック: Androidの音声合成エンジンが裏側でサスペンドされるのを防ぐため、定期的に一時停止→再開して起こし続ける
+            if (this.keepAliveTimer) clearInterval(this.keepAliveTimer);
+            this.keepAliveTimer = setInterval(() => {
+                if (this.isPlaying && this.synth.speaking) {
+                    this.synth.pause();
+                    this.synth.resume();
+                }
+            }, 14000);
+
+            // ③ スリープ防止機能: 画面が勝手に暗くなってオフになるのを防ぐ
+            this.requestWakeLock();
 
             ui.updatePlayerControls();
             this.speakCurrent();
@@ -532,12 +574,19 @@
             this.synth.cancel();
             
             // 無音オーディオも停止
-            this.silentAudio.pause();
+            const silentEl = document.getElementById('silent-audio');
+            if (silentEl) silentEl.pause();
+
+            // 14秒ハックのタイマーを停止
+            if (this.keepAliveTimer) clearInterval(this.keepAliveTimer);
 
             // スマホやイヤホンに「停止中」であることを明示的に伝える
             if ('mediaSession' in navigator) {
                 navigator.mediaSession.playbackState = 'paused';
             }
+
+            // スリープ防止機能を解除（バッテリー節約のため）
+            this.releaseWakeLock();
 
             ui.updatePlayerControls();
         },
@@ -1251,6 +1300,13 @@
                 document.getElementById('text-view-container').classList.add('writing-mode-vertical');
             }
             
+            // アプリ起動時や画面復帰時にスリープ防止を再要求する
+            document.addEventListener('visibilitychange', async () => {
+                if (document.visibilityState === 'visible' && player.isPlaying) {
+                    await player.requestWakeLock();
+                }
+            });
+
             try {
                 if (state.settings.gasUrl) {
                     await ui.loadInitialData();
