@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="ja">
+<html lang="ja" class="dark">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
@@ -72,7 +72,7 @@
         }
         
         :root { --bg: #ffffff; --text: #1e293b; --text-sub: #475569; --panel: #ffffff; --border: #e2e8f0; --accent: #3b82f6; --hover-bg: #e2e8f0; --highlight-bg: #fef08a; --highlight-text: #0f172a; }
-        .sepia { --bg: #fdf6e3; --text: #000000; --text-sub: #333333; --panel: #f4eccc; --border: #e6dcc0; --accent: #b38600; --hover-bg: #e6dcc0; --highlight-bg: #fcd34d; --highlight-text: #000000; }
+        .sepia { --bg: #d9cbb0; --text: #0f0d0a; --text-sub: #2e271f; --panel: #d0c0a3; --border: #b8a688; --accent: #785210; --hover-bg: #c9b798; --highlight-bg: #e0b876; --highlight-text: #000000; }
         .dark { --bg: #0f172a; --text: #f1f5f9; --text-sub: #cbd5e1; --panel: #1e293b; --border: #334155; --accent: #60a5fa; --hover-bg: #334155; --highlight-bg: #1e40af; --highlight-text: #ffffff; }
         body { background-color: var(--bg); color: var(--text); }
         
@@ -115,12 +115,13 @@
 <body class="bg-slate-50 text-slate-800 h-[100dvh] flex overflow-hidden font-sans text-sm md:text-base dark:bg-slate-900 dark:text-slate-100">
 
     <!-- サイドバー: 本のリスト -->
-    <aside id="sidebar" class="w-64 bg-white border-r border-slate-200 flex flex-col z-20 transition-transform transform -translate-x-full md:translate-x-0 absolute md:relative h-full">
+    <!-- PC/タブレット時もトグルできるように md:-ml-64 などを活用する構造に変更 -->
+    <aside id="sidebar" class="w-64 shrink-0 bg-white border-r border-slate-200 flex flex-col z-30 transition-all duration-300 absolute md:relative h-full -translate-x-full md:translate-x-0">
         <div class="p-4 border-b border-slate-200 flex justify-between items-center bg-slate-100">
             <h1 class="font-bold text-lg flex items-center gap-2 text-slate-700">
                 <i data-lucide="headphones" class="w-5 h-5 text-blue-600"></i> AI AudioBook
             </h1>
-            <button id="close-sidebar-btn" class="md:hidden p-1 hover:bg-slate-200 rounded">
+            <button id="close-sidebar-btn" class="p-1 hover:bg-slate-200 rounded text-slate-500 transition-colors">
                 <i data-lucide="x" class="w-5 h-5"></i>
             </button>
         </div>
@@ -139,7 +140,7 @@
         <!-- トップヘッダ -->
         <header id="main-header" class="h-14 bg-white border-b border-slate-200 flex items-center justify-between px-4 shrink-0">
             <div class="flex items-center gap-3 truncate">
-                <button id="open-sidebar-btn" class="md:hidden p-2 -ml-2 hover:bg-slate-100 rounded text-slate-600">
+                <button id="open-sidebar-btn" class="p-2 -ml-2 hover:bg-slate-100 rounded text-slate-600 transition-colors">
                     <i data-lucide="menu" class="w-5 h-5"></i>
                 </button>
                 <h2 id="header-book-title" class="font-bold text-slate-700 truncate text-lg">本を選択してください</h2>
@@ -155,9 +156,9 @@
                     <i data-lucide="search" class="w-5 h-5"></i>
                 </button>
                 <button id="theme-btn" onclick="ui.toggleTheme()" class="p-2 rounded hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-500 transition-colors" title="テーマ切替">
-                    <i data-lucide="sun" id="icon-light" class="w-5 h-5"></i>
+                    <i data-lucide="sun" id="icon-light" class="w-5 h-5 hidden"></i>
                     <i data-lucide="book-open" id="icon-sepia" class="w-5 h-5 hidden"></i>
-                    <i data-lucide="moon" id="icon-dark" class="w-5 h-5 hidden"></i>
+                    <i data-lucide="moon" id="icon-dark" class="w-5 h-5"></i>
                 </button>
                 <button onclick="ui.toggleReadingMode()" class="p-2 rounded hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-500 transition-colors" title="広々と読む（読書モード）">
                     <i data-lucide="maximize" class="w-5 h-5"></i>
@@ -173,8 +174,26 @@
             </div>
         </header>
 
+        <!-- 画像表示エリア (紙芝居モード) -->
+        <div id="storyboard-container" class="absolute inset-0 z-20 top-14 bottom-[88px] bg-slate-900 flex items-center justify-center overflow-hidden hidden transition-opacity duration-500 cursor-pointer" onclick="ui.toggleStoryboardText()">
+            <!-- object-contain で画面にはみ出さずに表示 -->
+            <img id="storyboard-image" class="w-full h-full object-contain opacity-0 transition-opacity duration-1000" src="" alt="情景画像">
+            <div id="storyboard-loading" class="absolute flex flex-col items-center justify-center text-white/70 hidden">
+                <div class="loader mb-2 !border-white/20 !border-t-white"></div>
+                <span class="text-xs font-medium bg-black/50 px-3 py-1 rounded-full">情景を描写中...</span>
+            </div>
+            <!-- テキストオーバーレイ (字幕) -->
+            <div id="storyboard-text-overlay" class="absolute inset-x-0 bottom-0 p-6 pt-20 bg-gradient-to-t from-black/90 to-transparent text-white text-base md:text-lg leading-loose opacity-0 transition-opacity duration-300 pointer-events-none hidden">
+                <p id="storyboard-text-content" class="max-w-3xl mx-auto drop-shadow-md font-serif-custom"></p>
+            </div>
+            <!-- 閉じるボタン -->
+            <button onclick="ui.hideStoryboard(event)" class="absolute top-4 right-4 bg-black/50 hover:bg-black/70 text-white p-2 rounded-full z-50 transition-colors pointer-events-auto">
+                <i data-lucide="x" class="w-6 h-6"></i>
+            </button>
+        </div>
+
         <!-- テキスト表示エリア -->
-        <div id="text-view-container" class="flex-1 overflow-y-auto p-4 md:p-8 relative scroll-smooth bg-slate-50 shadow-inner">
+        <div id="text-view-container" class="flex-1 overflow-y-auto p-4 md:p-8 relative scroll-smooth bg-slate-50 shadow-inner z-10 transition-colors duration-500">
             <div id="text-content" class="max-w-3xl mx-auto pb-32">
                 <!-- テキストがここにレンダリングされる -->
                 <div class="h-full flex items-center justify-center text-slate-400 mt-20">
@@ -189,7 +208,7 @@
         </button>
 
         <!-- プレイヤーコントロール -->
-        <div id="player-control-panel" class="bg-white border-t border-slate-200 px-4 py-3 shrink-0 flex flex-col gap-2">
+        <div id="player-control-panel" class="bg-white border-t border-slate-200 px-4 py-3 shrink-0 flex flex-col gap-2 relative z-10">
             <!-- テキスト量・時間情報 -->
             <div class="flex justify-between px-1 -mb-1 text-[10px] text-slate-500 tracking-wider">
                 <span id="time-stats">00:00 / 00:00</span>
@@ -226,7 +245,11 @@
                     </button>
                 </div>
                 
-                <div class="flex items-center">
+                <div class="flex items-center gap-2">
+                    <!-- 単発の画像生成ボタンを追加 -->
+                    <button onclick="app.generateSingleImage()" class="p-1.5 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded-full transition-colors" title="現在のシーンの画像を1枚生成">
+                        <i data-lucide="image" class="w-5 h-5"></i>
+                    </button>
                     <button onclick="ui.openModal('add-note-modal')" class="flex items-center gap-1 text-sm bg-amber-100 text-amber-800 hover:bg-amber-200 py-1.5 px-3 rounded shadow-sm transition-colors border border-amber-200 font-medium">
                         <i data-lucide="pen-line" class="w-4 h-4"></i> メモ
                     </button>
@@ -242,7 +265,7 @@
             <h3 id="panel-title" class="font-bold text-slate-700 flex items-center gap-2">
                 <i data-lucide="info" class="w-4 h-4"></i> パネル
             </h3>
-            <button onclick="ui.closeRightPanel()" class="p-1 hover:bg-slate-200 rounded text-slate-500 md:hidden">
+            <button onclick="ui.closeRightPanel()" class="p-1 hover:bg-slate-200 rounded text-slate-500">
                 <i data-lucide="x" class="w-5 h-5"></i>
             </button>
         </div>
@@ -294,7 +317,7 @@
                 <div>
                     <label class="block text-sm font-medium text-slate-700 mb-1">使用モデル</label>
                     <input type="text" id="setting-model" class="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500">
-                    <p class="text-xs text-slate-500 mt-1">デフォルトは gemini-3.1-flash-lite-preview です。</p>
+                    <p class="text-xs text-slate-500 mt-1">デフォルトは gemini-2.5-flash です。</p>
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-slate-700 mb-1">読み上げ音声</label>
@@ -309,10 +332,10 @@
                     <label class="block text-sm font-medium text-slate-700 mb-2">表示レイアウト</label>
                     <div class="flex items-center gap-4">
                         <label class="flex items-center gap-2 cursor-pointer">
-                            <input type="radio" name="layout-type" value="horizontal" checked class="text-blue-600" onchange="app.updateLayout()"> 横書き
+                            <input type="radio" name="layout-type" value="horizontal" class="text-blue-600" onchange="app.updateLayout()"> 横書き
                         </label>
                         <label class="flex items-center gap-2 cursor-pointer">
-                            <input type="radio" name="layout-type" value="vertical" class="text-blue-600" onchange="app.updateLayout()"> 縦書き
+                            <input type="radio" name="layout-type" value="vertical" checked class="text-blue-600" onchange="app.updateLayout()"> 縦書き
                         </label>
                     </div>
                 </div>
@@ -320,11 +343,61 @@
                     <label class="block text-sm font-medium text-slate-700 mb-2">表示フォント</label>
                     <div class="flex items-center gap-4">
                         <label class="flex items-center gap-2 cursor-pointer">
-                            <input type="radio" name="font-type" value="sans" checked class="text-blue-600" onchange="app.updateFont()"> ゴシック
+                            <input type="radio" name="font-type" value="sans" class="text-blue-600" onchange="app.updateFont()"> ゴシック
                         </label>
                         <label class="flex items-center gap-2 cursor-pointer">
-                            <input type="radio" name="font-type" value="serif" class="text-blue-600" onchange="app.updateFont()"> 明朝
+                            <input type="radio" name="font-type" value="serif" checked class="text-blue-600" onchange="app.updateFont()"> 明朝
                         </label>
+                    </div>
+                </div>
+                <!-- 追加: フォントウェイト（文字の太さ）設定 -->
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-1">文字の太さ</label>
+                    <select id="setting-font-weight" class="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500 bg-white" onchange="app.updateFontWeight()">
+                        <option value="normal">標準</option>
+                        <option value="medium">やや太い</option>
+                        <option value="bold">太い</option>
+                    </select>
+                </div>
+                <!-- 追加: 文字サイズ設定 -->
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-1">文字サイズ</label>
+                    <select id="setting-font-size" class="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500 bg-white" onchange="app.updateFontSize(this.value)">
+                        <option value="0.8">極小 (0.8x)</option>
+                        <option value="0.9">小 (0.9x)</option>
+                        <option value="1.0">標準 (1.0x)</option>
+                        <option value="1.1">やや大 (1.1x)</option>
+                        <option value="1.2">大 (1.2x)</option>
+                        <option value="1.5">特大 (1.5x)</option>
+                        <option value="2.0">極大 (2.0x)</option>
+                        <option value="2.5">超極大 (2.5x)</option>
+                        <option value="3.0">最大 (3.0x)</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-2 border-b pb-1">紙芝居モード (Gemini TTS時のみ)</label>
+                    <div class="flex items-center justify-between mb-3">
+                        <label class="text-sm text-slate-700">画像生成を有効にする</label>
+                        <input type="checkbox" id="setting-storyboard-enabled" class="w-4 h-4 text-blue-600 rounded" onchange="app.updateStoryboardSettings()">
+                    </div>
+                    <div class="mb-3">
+                        <label class="block text-sm text-slate-700 mb-1">画像生成モデル</label>
+                        <input type="text" id="setting-storyboard-model" class="w-full text-sm border border-slate-300 rounded px-2 py-1 focus:outline-none focus:border-blue-500" placeholder="例: gemini-2.5-flash-image-preview" onchange="app.updateStoryboardSettings()">
+                        <p class="text-[10px] text-slate-500 mt-1">※バージョン名変更時はここを直接修正してください。<br>例: gemini-2.5-flash-image-preview, imagen-4.0-generate-001</p>
+                    </div>
+                    <div class="flex items-center justify-between mb-3">
+                        <label class="text-sm text-slate-700">画像のアスペクト比</label>
+                        <select id="setting-storyboard-aspect" class="text-sm border border-slate-300 rounded px-2 py-1 focus:outline-none focus:border-blue-500" onchange="app.updateStoryboardSettings()">
+                            <option value="9:16">縦長 (9:16)</option>
+                            <option value="16:9">横長 (16:9)</option>
+                        </select>
+                    </div>
+                    <div class="flex items-center justify-between">
+                        <label class="text-sm text-slate-700">画像のトーン</label>
+                        <select id="setting-storyboard-style" class="text-sm border border-slate-300 rounded px-2 py-1 focus:outline-none focus:border-blue-500" onchange="app.updateStoryboardSettings()">
+                            <option value="anime">アニメ調</option>
+                            <option value="photorealistic">完全実写調</option>
+                        </select>
                     </div>
                 </div>
                 <button onclick="app.saveSettings()" class="w-full bg-slate-800 text-white rounded py-2 hover:bg-slate-700 transition-colors font-medium text-sm shadow">
@@ -415,6 +488,7 @@
     // 環境変数とグローバル状態
     // ==========================================
     const apiKey = ""; // Canvas環境変数が注入される場所
+    const DEFAULT_GAS_URL = "https://script.google.com/macros/s/AKfycbzoOQjwjX2vW3oaebY0q0QyLDWbf43tmaVV3Pe7-uIl7CaDzpvNVYQKN3r4rQRvW4LYDw/exec"; // ★Canvas用にGAS URLをハードコーディングする場合はここに入力
     
     const state = {
         books: [],
@@ -422,11 +496,18 @@
         notes: [],
         activePanel: null,
         preventSpoilers: true,
+        isSingleImageMode: false, // 追加: 単発画像モードフラグ
         settings: {
             apiKey: localStorage.getItem('ab_api_key') || apiKey,
-            model: localStorage.getItem('ab_model') || "gemini-3.1-flash-lite-preview",
-            font: localStorage.getItem('ab_font') || 'sans',
-            gasUrl: localStorage.getItem('ab_gas_url') || ""
+            model: localStorage.getItem('ab_model') || "gemini-2.5-flash",
+            font: localStorage.getItem('ab_font') || 'serif',
+            fontWeight: localStorage.getItem('ab_font_weight') || 'normal', // 追加: フォントウェイト
+            fontSize: localStorage.getItem('ab_font_size') || '1.0', // 追加: 文字サイズ
+            gasUrl: localStorage.getItem('ab_gas_url') || DEFAULT_GAS_URL,
+            storyboardEnabled: localStorage.getItem('ab_storyboard_enabled') === 'true',
+            storyboardModel: localStorage.getItem('ab_storyboard_model') || 'gemini-2.5-flash-image-preview', // 追加: 画像生成モデル設定
+            storyboardAspect: localStorage.getItem('ab_storyboard_aspect') || '9:16',
+            storyboardStyle: localStorage.getItem('ab_storyboard_style') || 'anime'
         },
         mediaSessionInitialized: false
     };
@@ -508,6 +589,145 @@
     };
 
     // ==========================================
+    // Gemini TTS 関連関数
+    // ==========================================
+    const geminiTTS = {
+        voices: [
+            { id: 'gemini-Achernar', name: 'Achernar (Gemini Female)', voiceName: 'Achernar' },
+            { id: 'gemini-Achird', name: 'Achird (Gemini Male)', voiceName: 'Achird' },
+            { id: 'gemini-Algenib', name: 'Algenib (Gemini Male)', voiceName: 'Algenib' },
+            { id: 'gemini-Algieba', name: 'Algieba (Gemini Male)', voiceName: 'Algieba' },
+            { id: 'gemini-Alnilam', name: 'Alnilam (Gemini Male)', voiceName: 'Alnilam' },
+            { id: 'gemini-Aoede', name: 'Aoede (Gemini Female)', voiceName: 'Aoede' },
+            { id: 'gemini-Autonoe', name: 'Autonoe (Gemini Female)', voiceName: 'Autonoe' },
+            { id: 'gemini-Callirrhoe', name: 'Callirrhoe (Gemini Female)', voiceName: 'Callirrhoe' },
+            { id: 'gemini-Charon', name: 'Charon (Gemini Male)', voiceName: 'Charon' },
+            { id: 'gemini-Despina', name: 'Despina (Gemini Female)', voiceName: 'Despina' },
+            { id: 'gemini-Enceladus', name: 'Enceladus (Gemini Male)', voiceName: 'Enceladus' },
+            { id: 'gemini-Erinome', name: 'Erinome (Gemini Female)', voiceName: 'Erinome' },
+            { id: 'gemini-Fenrir', name: 'Fenrir (Gemini Male)', voiceName: 'Fenrir' },
+            { id: 'gemini-Gacrux', name: 'Gacrux (Gemini Female)', voiceName: 'Gacrux' },
+            { id: 'gemini-Iapetus', name: 'Iapetus (Gemini Male)', voiceName: 'Iapetus' },
+            { id: 'gemini-Kore', name: 'Kore (Gemini Female)', voiceName: 'Kore' },
+            { id: 'gemini-Laomedeia', name: 'Laomedeia (Gemini Female)', voiceName: 'Laomedeia' },
+            { id: 'gemini-Leda', name: 'Leda (Gemini Female)', voiceName: 'Leda' },
+            { id: 'gemini-Orus', name: 'Orus (Gemini Male)', voiceName: 'Orus' },
+            { id: 'gemini-Pulcherrima', name: 'Pulcherrima (Gemini Female)', voiceName: 'Pulcherrima' },
+            { id: 'gemini-Puck', name: 'Puck (Gemini Male)', voiceName: 'Puck' },
+            { id: 'gemini-Rasalgethi', name: 'Rasalgethi (Gemini Male)', voiceName: 'Rasalgethi' },
+            { id: 'gemini-Sadachbia', name: 'Sadachbia (Gemini Male)', voiceName: 'Sadachbia' },
+            { id: 'gemini-Sadaltager', name: 'Sadaltager (Gemini Male)', voiceName: 'Sadaltager' },
+            { id: 'gemini-Schedar', name: 'Schedar (Gemini Male)', voiceName: 'Schedar' },
+            { id: 'gemini-Sulafat', name: 'Sulafat (Gemini Female)', voiceName: 'Sulafat' },
+            { id: 'gemini-Umbriel', name: 'Umbriel (Gemini Male)', voiceName: 'Umbriel' },
+            { id: 'gemini-Vindemiatrix', name: 'Vindemiatrix (Gemini Female)', voiceName: 'Vindemiatrix' },
+            { id: 'gemini-Zephyr', name: 'Zephyr (Gemini Female)', voiceName: 'Zephyr' },
+            { id: 'gemini-Zubenelgenubi', name: 'Zubenelgenubi (Gemini Male)', voiceName: 'Zubenelgenubi' }
+        ],
+        async generateAudio(text, voiceName) {
+            const apiKeyToUse = state.settings.apiKey;
+            // Canvas環境の自動注入を利用するため空チェックを削除
+            
+            const requestBody = {
+                contents: [{ parts: [{ text: text }] }],
+                generationConfig: { responseModalities: ["AUDIO"], speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: voiceName } } } },
+                model: "gemini-2.5-flash-preview-tts"
+            };
+
+            const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-tts:generateContent?key=${apiKeyToUse}`, {
+                method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(requestBody)
+            });
+
+            if (!response.ok) throw new Error("TTS API Error");
+            const data = await response.json();
+            
+            const part = data.candidates[0].content.parts[0];
+            const base64Data = part.inlineData.data;
+            const mimeType = part.inlineData.mimeType;
+            const match = mimeType.match(/rate=(\d+)/);
+            const sampleRate = match ? parseInt(match[1]) : 24000;
+
+            const binaryString = atob(base64Data);
+            const bytes = new Uint8Array(binaryString.length);
+            for (let i = 0; i < binaryString.length; i++) bytes[i] = binaryString.charCodeAt(i);
+            const pcm16Data = new Int16Array(bytes.buffer);
+
+            return this.pcmToWav(pcm16Data, sampleRate);
+        },
+        pcmToWav(pcmData, sampleRate) {
+            const numChannels = 1; const bytesPerSample = 2; const blockAlign = numChannels * bytesPerSample;
+            const byteRate = sampleRate * blockAlign; const dataSize = pcmData.length * bytesPerSample;
+            const buffer = new ArrayBuffer(44 + dataSize); const view = new DataView(buffer);
+            const writeString = (offset, string) => { for (let i = 0; i < string.length; i++) view.setUint8(offset + i, string.charCodeAt(i)); };
+            writeString(0, 'RIFF'); view.setUint32(4, 36 + dataSize, true); writeString(8, 'WAVE'); writeString(12, 'fmt ');
+            view.setUint32(16, 16, true); view.setUint16(20, 1, true); view.setUint16(22, numChannels, true);
+            view.setUint32(24, sampleRate, true); view.setUint32(28, byteRate, true); view.setUint16(32, blockAlign, true);
+            view.setUint16(34, bytesPerSample * 8, true); writeString(36, 'data'); view.setUint32(40, dataSize, true);
+            for (let i = 0; i < pcmData.length; i++) view.setInt16(44 + i * 2, pcmData[i], true);
+            return new Blob([view], { type: 'audio/wav' });
+        }
+    };
+
+    // ==========================================
+    // Gemini Imagen 関連関数 (画像生成)
+    // ==========================================
+    const geminiImagen = {
+        async generateImage(promptText, aspectRatio) {
+            const apiKeyToUse = state.settings.apiKey;
+            const modelToUse = state.settings.storyboardModel || 'gemini-2.5-flash-image-preview';
+
+            // 修正: エラー時に最大5回まで待機時間を伸ばしながら自動再挑戦する（息切れの防止）
+            const maxRetries = 5;
+            let delay = 1000;
+
+            for (let i = 0; i < maxRetries; i++) {
+                try {
+                    if (modelToUse === 'imagen-4.0-generate-001') {
+                        const payload = {
+                            instances: { prompt: promptText },
+                            parameters: { sampleCount: 1, aspectRatio: aspectRatio || "9:16" }
+                        };
+                        
+                        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/imagen-4.0-generate-001:predict?key=${apiKeyToUse}`, {
+                            method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
+                        });
+
+                        if (!response.ok) throw new Error("Imagen API Error");
+                        const data = await response.json();
+                        
+                        if (data.predictions && data.predictions[0] && data.predictions[0].bytesBase64Encoded) {
+                            return `data:image/png;base64,${data.predictions[0].bytesBase64Encoded}`;
+                        }
+                    } else {
+                        // 修正: 自由入力されたモデル名がURLに反映されるように変更
+                        const payload = {
+                            contents: [{parts: [{ text: promptText }]}],
+                            generationConfig: { responseModalities: ['TEXT', 'IMAGE'] }
+                        };
+                        
+                        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelToUse}:generateContent?key=${apiKeyToUse}`, {
+                            method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
+                        });
+
+                        if (!response.ok) throw new Error("Flash Image API Error");
+                        const data = await response.json();
+                        const base64Data = data.candidates?.[0]?.content?.parts?.find(p => p.inlineData)?.inlineData?.data;
+                        
+                        if (base64Data) {
+                            return `data:image/png;base64,${base64Data}`;
+                        }
+                    }
+                    throw new Error("画像の生成に失敗しました");
+                } catch (error) {
+                    if (i === maxRetries - 1) throw error; // 最後の挑戦で失敗したらエラーを投げる
+                    await new Promise(resolve => setTimeout(resolve, delay));
+                    delay *= 2; // 1秒、2秒、4秒…と待機時間を倍にする
+                }
+            }
+        }
+    };
+
+    // ==========================================
     // オーディオプレイヤー制御
     // ==========================================
     const player = {
@@ -515,40 +735,158 @@
         utterance: null,
         isPlaying: false,
         rate: 1.0,
-        // バックグラウンド再生維持のための無音オーディオ
+        geminiAudio: null,
         silentAudio: new Audio('data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA'),
 
+        audioCache: new Map(),
+        imageCache: new Map(), // 画像の先読みキャッシュ
+        cachedBookId: null,
+
+        getChunk(startIndex) {
+            const book = state.currentBook;
+            if (!book || !book.sentences || startIndex >= book.sentences.length) return null;
+            let text = ""; let count = 0; const targetLength = 250; 
+            for (let i = startIndex; i < book.sentences.length; i++) {
+                const sentence = book.sentences[i];
+                if (!sentence || !sentence.trim().replace(/[\n\r]/g, '')) { count++; continue; }
+                text += sentence + " "; count++;
+                if (text.length >= targetLength) break;
+            }
+            return { text: text.trim(), size: count > 0 ? count : 1 };
+        },
+
+        createImagePrompt(book, chunkStartIndex, chunkSize) {
+            const chunkText = book.sentences.slice(chunkStartIndex, chunkStartIndex + chunkSize).join("");
+            
+            // 修正: 過去のテキストが長すぎないよう、直近の約1000文字に制限する（消化不良の防止）
+            let pastText = book.sentences.slice(0, chunkStartIndex).join("");
+            if (pastText.length > 1000) pastText = "..." + pastText.slice(-1000);
+            
+            let styleDescription = "美しい色彩、アニメ・映画のワンシーンのような情景、キャラクターや風景を魅力的かつ鮮明に描写、高品質、高画質";
+            if (state.settings.storyboardStyle === 'photorealistic') {
+                styleDescription = "完全な実写、写真のようなリアルさ、シネマティックライティング、実在する風景や人物のような圧倒的なディテール、高品質、高画質";
+            }
+
+            // 修正: プロンプト内に直接アスペクト比の指示を盛り込む（空振りの防止）
+            const aspectText = state.settings.storyboardAspect === "9:16" ? "縦長 (Aspect ratio 9:16)" : "横長 (Aspect ratio 16:9)";
+
+            return `以下のテキストの情景を視覚的に表現する美しいイラスト/画像を作成してください。
+【超重要・厳守】画像内に文字、テキスト、セリフ、吹き出し、アルファベット、数字を「絶対に」描き込まないでください。純粋な風景や人物のみを描写してください。必ず ${aspectText} で描画してください。
+【これまでのあらすじ】: ${pastText}
+【描くべき現在のシーン】: ${chunkText}
+【スタイル】: ${styleDescription}`;
+        },
+
+        clearCache() {
+            this.audioCache.forEach(val => { if (typeof val === 'string') URL.revokeObjectURL(val); });
+            this.audioCache.clear();
+            this.imageCache.clear();
+        },
+
+        cleanUpCache() {
+            const book = state.currentBook;
+            if (!book) { this.clearCache(); return; }
+            if (this.cachedBookId !== book.id) { this.clearCache(); this.cachedBookId = book.id; }
+            
+            const current = book.currentIndex;
+            for (const [index, val] of this.audioCache.entries()) {
+                if (index < current || index > current + 100) {
+                    if (typeof val === 'string') URL.revokeObjectURL(val);
+                    this.audioCache.delete(index);
+                    this.imageCache.delete(index);
+                }
+            }
+            
+            if (this.audioCache.size > 6) {
+                const sortedKeys = Array.from(this.audioCache.keys()).sort((a, b) => a - b);
+                while (this.audioCache.size > 6 && sortedKeys.length > 0) {
+                    const keyToRemove = sortedKeys.shift();
+                    if (keyToRemove !== current) {
+                        const val = this.audioCache.get(keyToRemove);
+                        if (typeof val === 'string') URL.revokeObjectURL(val);
+                        this.audioCache.delete(keyToRemove);
+                        this.imageCache.delete(keyToRemove);
+                    }
+                }
+            }
+        },
+
+        preloadNextMedia() {
+            const book = state.currentBook;
+            if (!book || !book.sentences) return;
+            
+            const voiceNameId = localStorage.getItem('ab_voice_name');
+            if (!voiceNameId || !voiceNameId.startsWith('gemini-')) return;
+            const geminiVoice = geminiTTS.voices.find(v => v.id === voiceNameId);
+            if (!geminiVoice) return;
+
+            let targetIndex = book.currentIndex;
+            const isStoryboardOn = state.settings.storyboardEnabled;
+            
+            // 最大2チャンク先までを順番にチェック
+            for (let i = 0; i < 3; i++) {
+                if (targetIndex >= book.sentences.length) break;
+                const chunk = this.getChunk(targetIndex);
+                if (!chunk || !chunk.text) break;
+                
+                if (i > 0) { // i=0 は現在のチャンクなので先読み対象外
+                    const currentIndexForFetch = targetIndex;
+                    let hasAudio = this.audioCache.has(currentIndexForFetch);
+                    let hasImage = this.imageCache.has(currentIndexForFetch) || !isStoryboardOn;
+                    
+                    if (!hasAudio || !hasImage) {
+                        // 音声の先読み
+                        if (!hasAudio) {
+                            const fetchPromise = geminiTTS.generateAudio(chunk.text, geminiVoice.voiceName).then(audioBlob => {
+                                const audioUrl = URL.createObjectURL(audioBlob);
+                                if (this.audioCache.has(currentIndexForFetch)) {
+                                    this.audioCache.set(currentIndexForFetch, audioUrl);
+                                } else {
+                                    URL.revokeObjectURL(audioUrl);
+                                }
+                                return audioUrl;
+                            }).catch(e => {
+                                this.audioCache.delete(currentIndexForFetch);
+                            });
+                            this.audioCache.set(currentIndexForFetch, fetchPromise);
+                        }
+
+                        // 画像の先読み
+                        if (isStoryboardOn && !hasImage) {
+                            const prompt = this.createImagePrompt(book, currentIndexForFetch, chunk.size);
+                            const imgPromise = geminiImagen.generateImage(prompt, state.settings.storyboardAspect).then(base64 => {
+                                if (this.imageCache.has(currentIndexForFetch)) {
+                                    this.imageCache.set(currentIndexForFetch, base64);
+                                }
+                                return base64;
+                            }).catch(e => {
+                                this.imageCache.delete(currentIndexForFetch);
+                            });
+                            this.imageCache.set(currentIndexForFetch, imgPromise);
+                        }
+
+                        // リクエストの直列化と負荷軽減のため、1つ投げて少し待つ
+                        setTimeout(() => this.preloadNextMedia(), 1500);
+                        break; 
+                    }
+                }
+                targetIndex += chunk.size;
+            }
+        },
+
         togglePlay() {
-            if (!state.currentBook) {
-                alert("本を選択するか追加してください。");
-                return;
-            }
-            if (this.isPlaying) {
-                this.pause();
-            } else {
-                this.play();
-            }
+            if (!state.currentBook) { alert("本を選択するか追加してください。"); return; }
+            if (this.isPlaying) this.pause(); else this.play();
         },
 
         play() {
             if (!state.currentBook) return;
             const book = state.currentBook;
-            if (book.currentIndex >= book.sentences.length) {
-                // 最後まで行っていたら最初から
-                book.currentIndex = 0;
-            }
-            
+            if (book.currentIndex >= book.sentences.length) book.currentIndex = 0;
             this.isPlaying = true;
-            
-            // バックグラウンド維持のため無音オーディオをループ再生
             this.silentAudio.loop = true;
-            this.silentAudio.play().catch(e => console.log("無音オーディオの再生に失敗:", e));
-
-            // スマホやイヤホンに「再生中」であることを明示的に伝える
-            if ('mediaSession' in navigator) {
-                navigator.mediaSession.playbackState = 'playing';
-            }
-
+            this.silentAudio.play().catch(e => {});
+            if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'playing';
             ui.updatePlayerControls();
             this.speakCurrent();
         },
@@ -556,168 +894,145 @@
         pause() {
             this.isPlaying = false;
             this.synth.cancel();
-            
-            // 無音オーディオも停止
+            if (this.geminiAudio) { this.geminiAudio.pause(); this.geminiAudio = null; }
             this.silentAudio.pause();
-
-            // スマホやイヤホンに「停止中」であることを明示的に伝える
-            if ('mediaSession' in navigator) {
-                navigator.mediaSession.playbackState = 'paused';
-            }
-
+            if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'paused';
             ui.updatePlayerControls();
         },
 
-        speakCurrent() {
+        async speakCurrent() {
             if (!this.isPlaying) return;
-            this.synth.cancel(); // 念のためキャンセル
+            this.synth.cancel();
+            if (this.geminiAudio) { this.geminiAudio.pause(); this.geminiAudio = null; }
 
             const book = state.currentBook;
-            // sentencesがまだロードされていない場合は中断
             if (!book.sentences) return;
-            const text = book.sentences[book.currentIndex];
 
-            // 空白や改行のみの要素はスキップ
-            if (!text || !text.trim().replace(/[\n\r]/g, '')) {
-                this.advanceToNext();
-                return;
+            ui.renderTextWindow();
+            const voiceNameId = localStorage.getItem('ab_voice_name');
+            const isGeminiTTS = voiceNameId && voiceNameId.startsWith('gemini-');
+
+            // --- 紙芝居UIの制御 ---
+            if (state.isSingleImageMode) {
+                // 単発画像モードの時は何もしない（画像を維持）
+            } else if (isGeminiTTS && state.settings.storyboardEnabled) {
+                ui.showStoryboard(book.currentIndex);
+            } else {
+                ui.hideStoryboard();
             }
 
-            this.utterance = new SpeechSynthesisUtterance(text);
-            this.utterance.lang = 'ja-JP';
-            this.utterance.rate = this.rate;
-            
-            // 音声設定の適用
-            const voiceName = localStorage.getItem('ab_voice_name');
-            const voices = this.synth.getVoices();
-            const selectedVoice = voices.find(v => v.name === voiceName || v.voiceURI === voiceName);
-            if (selectedVoice) {
-                this.utterance.voice = selectedVoice;
-            }
+            // --- Gemini TTSを使用する場合 ---
+            if (isGeminiTTS) {
+                const geminiVoice = geminiTTS.voices.find(v => v.id === voiceNameId);
+                const currentIndex = book.currentIndex;
+                const chunk = this.getChunk(currentIndex);
+                if (!chunk || !chunk.text) { this.advanceBy(chunk ? chunk.size : 1); return; }
+                
+                this.cleanUpCache();
+                this.preloadNextMedia(); // メディアの先読み
 
-            this.utterance.onend = (e) => {
-                // キャンセルによる終了でなく、自然終了の場合のみ次へ
-                if (this.isPlaying && e.type === 'end') {
-                    this.advanceToNext();
-                }
-            };
-
-            this.utterance.onerror = (e) => {
-                console.warn("Speech Error or Canceled:", e);
-                // 意図的なキャンセルでなければ停止
-                if (this.isPlaying) {
+                try {
+                    let audioUrl;
+                    if (this.audioCache.has(currentIndex)) {
+                        const cached = this.audioCache.get(currentIndex);
+                        if (typeof cached === 'string') {
+                            audioUrl = cached; 
+                        } else {
+                            const playBtn = document.getElementById('btn-play');
+                            const origHTML = playBtn.innerHTML;
+                            playBtn.innerHTML = '<div class="loader !w-6 !h-6 !border-2"></div>';
+                            try { audioUrl = await cached; } finally { playBtn.innerHTML = origHTML; }
+                        }
+                    } else {
+                        const playBtn = document.getElementById('btn-play');
+                        const origHTML = playBtn.innerHTML;
+                        playBtn.innerHTML = '<div class="loader !w-6 !h-6 !border-2"></div>';
+                        try {
+                            const audioBlob = await geminiTTS.generateAudio(chunk.text, geminiVoice.voiceName);
+                            audioUrl = URL.createObjectURL(audioBlob);
+                            this.audioCache.set(currentIndex, audioUrl);
+                        } finally { playBtn.innerHTML = origHTML; }
+                    }
+                    
+                    if (!this.isPlaying || state.currentBook.currentIndex !== currentIndex) return;
+                    
+                    this.geminiAudio = new Audio(audioUrl);
+                    this.geminiAudio.playbackRate = this.rate; 
+                    this.geminiAudio.onended = () => { if (this.isPlaying) this.advanceBy(chunk.size); };
+                    this.geminiAudio.onerror = (e) => { if (this.isPlaying) this.pause(); };
+                    this.geminiAudio.play();
+                } catch (e) {
+                    console.error("Gemini TTS Error:", e);
+                    ui.addChatMessage("System", "音声生成に失敗しました。", true);
                     this.pause();
                 }
-            };
+            } 
+            // --- 既存の無料TTSを使用する場合 ---
+            else {
+                const text = book.sentences[book.currentIndex];
+                if (!text || !text.trim().replace(/[\n\r]/g, '')) { this.advanceBy(1); return; }
 
-            // 読み上げ前にUI更新してスクロールさせる
-            ui.renderTextWindow();
-            
-            // バグ回避のための遅延発火 (Safariなどで連続再生が止まる問題への対策)
-            setTimeout(() => {
-                if(this.isPlaying) this.synth.speak(this.utterance);
-            }, 50);
+                this.utterance = new SpeechSynthesisUtterance(text);
+                this.utterance.lang = 'ja-JP';
+                this.utterance.rate = this.rate;
+                const voices = this.synth.getVoices();
+                const selectedVoice = voices.find(v => v.name === voiceNameId || v.voiceURI === voiceNameId);
+                if (selectedVoice) this.utterance.voice = selectedVoice;
+
+                this.utterance.onend = (e) => { if (this.isPlaying && e.type === 'end') this.advanceBy(1); };
+                this.utterance.onerror = (e) => { if (this.isPlaying) this.pause(); };
+
+                setTimeout(() => { if(this.isPlaying) this.synth.speak(this.utterance); }, 50);
+            }
         },
 
-        // 進捗を裏側でGASに同期する（投げっぱなし）
         saveProgressBackground() {
             const b = state.currentBook;
             if (!b) return;
             b.updatedAt = Date.now();
-            cloudManager.updateProgress(b.id, b.currentIndex, b.updatedAt).catch(e => console.log("Progress sync error", e));
+            cloudManager.updateProgress(b.id, b.currentIndex, b.updatedAt).catch(e => {});
         },
 
-        advanceToNext() {
+        advanceBy(size) {
             const book = state.currentBook;
             if (book.sentences && book.currentIndex < book.sentences.length - 1) {
-                book.currentIndex++;
-                this.saveProgressBackground(); // クラウドに自動保存
+                book.currentIndex = Math.min(book.currentIndex + size, book.sentences.length - 1);
+                if (book.currentIndex >= book.sentences.length - 1 && !book.sentences[book.currentIndex].trim()) {
+                    this.isPlaying = false; ui.updatePlayerControls(); return;
+                }
+                this.saveProgressBackground();
                 ui.updateProgressBar();
-                this.speakCurrent(); // 次を再生
+                this.speakCurrent(); 
             } else {
-                this.isPlaying = false;
-                ui.updatePlayerControls();
+                this.isPlaying = false; ui.updatePlayerControls();
             }
         },
-
-        next() {
-            const book = state.currentBook;
-            if (!book || !book.sentences) return;
-            if (book.currentIndex < book.sentences.length - 1) {
-                book.currentIndex++;
-                this.saveProgressBackground(); // クラウドに自動保存
-                ui.updateProgressBar();
-                ui.renderTextWindow();
-                if (this.isPlaying) this.speakCurrent();
-            }
-        },
-
-        prev() {
-            const book = state.currentBook;
-            if (!book || !book.sentences) return;
-            if (book.currentIndex > 0) {
-                book.currentIndex--;
-                this.saveProgressBackground(); // クラウドに自動保存
-                ui.updateProgressBar();
-                ui.renderTextWindow();
-                if (this.isPlaying) this.speakCurrent();
-            }
-        },
-
-        jumpTo(index) {
-            const book = state.currentBook;
-            if (!book || !book.sentences) return;
-            if (index >= 0 && index < book.sentences.length) {
-                book.currentIndex = index;
-                this.saveProgressBackground(); // クラウドに自動保存
-                ui.updateProgressBar();
-                ui.renderTextWindow();
-                if (this.isPlaying) this.speakCurrent();
-            }
-        },
-
-        seekBySlider(val) {
-            const book = state.currentBook;
-            if (!book || !book.sentences) return;
-            const total = book.sentences.length;
-            const targetIndex = Math.floor(total * (val / 100));
-            book.currentIndex = Math.min(Math.max(0, targetIndex), total - 1);
-            
-            // シークが終わった時点で保存
-            this.saveProgressBackground(); 
-            
-            ui.updateProgressBar();
-            ui.renderTextWindow();
-            
-            // シーク中に再生中だった場合は、シーク先のテキストから読み上げを再開
-            if (this.isPlaying) {
-                this.speakCurrent();
-            }
-        },
-
-        setRate(rateStr) {
-            this.rate = parseFloat(rateStr);
-            ui.updateProgressBar(); // 速度変更に伴う時間の再計算
-            if (this.isPlaying) {
-                this.speakCurrent(); // 現在の文から速度を適用して再開
-            }
-        },
+        next() { const b = state.currentBook; if (!b || !b.sentences) return; if (b.currentIndex < b.sentences.length - 1) { b.currentIndex++; this.saveProgressBackground(); ui.updateProgressBar(); ui.renderTextWindow(); if (this.isPlaying) this.speakCurrent(); } },
+        prev() { const b = state.currentBook; if (!b || !b.sentences) return; if (b.currentIndex > 0) { b.currentIndex--; this.saveProgressBackground(); ui.updateProgressBar(); ui.renderTextWindow(); if (this.isPlaying) this.speakCurrent(); } },
+        jumpTo(index) { const b = state.currentBook; if (!b || !b.sentences) return; if (index >= 0 && index < b.sentences.length) { b.currentIndex = index; this.saveProgressBackground(); ui.updateProgressBar(); ui.renderTextWindow(); if (this.isPlaying) this.speakCurrent(); } },
+        seekBySlider(val) { const b = state.currentBook; if (!b || !b.sentences) return; const target = Math.floor(b.sentences.length * (val / 100)); b.currentIndex = Math.min(Math.max(0, target), b.sentences.length - 1); this.saveProgressBackground(); ui.updateProgressBar(); ui.renderTextWindow(); if (this.isPlaying) this.speakCurrent(); },
+        setRate(rateStr) { this.rate = parseFloat(rateStr); ui.updateProgressBar(); if (this.isPlaying) this.speakCurrent(); },
         
-        speakFreeText(text) {
-             const prevPlaying = this.isPlaying;
-             this.pause(); // 本の再生を停止
-             
-             const u = new SpeechSynthesisUtterance(text);
-             u.lang = 'ja-JP';
-             u.rate = this.rate;
-             
-             // 音声設定の適用
-             const voiceName = localStorage.getItem('ab_voice_name');
-             const voices = this.synth.getVoices();
-             const selectedVoice = voices.find(v => v.name === voiceName || v.voiceURI === voiceName);
-             if (selectedVoice) u.voice = selectedVoice;
-             
-             this.synth.speak(u);
+        async speakFreeText(text) {
+            this.pause(); 
+            const voiceNameId = localStorage.getItem('ab_voice_name');
+            if (voiceNameId && voiceNameId.startsWith('gemini-')) {
+                const geminiVoice = geminiTTS.voices.find(v => v.id === voiceNameId);
+                try {
+                    const audioBlob = await geminiTTS.generateAudio(text, geminiVoice.voiceName);
+                    const audioUrl = URL.createObjectURL(audioBlob);
+                    this.geminiAudio = new Audio(audioUrl);
+                    this.geminiAudio.playbackRate = this.rate;
+                    this.geminiAudio.play();
+                } catch (e) {}
+            } else {
+                const u = new SpeechSynthesisUtterance(text);
+                u.lang = 'ja-JP'; u.rate = this.rate;
+                const voices = this.synth.getVoices();
+                const selectedVoice = voices.find(v => v.name === voiceNameId || v.voiceURI === voiceNameId);
+                if (selectedVoice) u.voice = selectedVoice;
+                this.synth.speak(u);
+            }
         }
     };
 
@@ -732,11 +1047,7 @@
             if (!text || !state.currentBook || !state.currentBook.sentences) return;
 
             const apiKeyToUse = state.settings.apiKey;
-            if (!apiKeyToUse) {
-                ui.addChatMessage("System", "AI機能を利用するには設定からGemini APIキーを入力してください。", true);
-                ui.toggleRightPanel('settings');
-                return;
-            }
+            // Canvas環境の自動注入を利用するため空チェックを削除
 
             // UI更新
             input.value = '';
@@ -757,7 +1068,7 @@
                 }
 
                 // API制限を考慮し、長すぎる場合は後ろから切り詰める（最新の文脈を優先）
-                const MAX_CHARS = 150000; 
+                const MAX_CHARS = 1500; 
                 if (contextText.length > MAX_CHARS) {
                     contextText = contextText.slice(-MAX_CHARS);
                 }
@@ -811,10 +1122,7 @@
 
         async startRecording(targetId, btnId, timerId) {
             const apiKeyToUse = state.settings.apiKey;
-            if (!apiKeyToUse) {
-                alert("音声入力を使用するには設定からGemini APIキーを入力してください。");
-                return;
-            }
+            // Canvas環境の自動注入を利用するため空チェックを削除
 
             try {
                 const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -965,12 +1273,12 @@
             lucide.createIcons();
             this.initMediaSession();
             
-            // サイドバーのトグル（モバイル用）
+            // サイドバーのトグル（モバイル/PC共通対応）
             document.getElementById('open-sidebar-btn').addEventListener('click', () => {
-                document.getElementById('sidebar').classList.remove('-translate-x-full');
+                this.toggleSidebar();
             });
             document.getElementById('close-sidebar-btn').addEventListener('click', () => {
-                document.getElementById('sidebar').classList.add('-translate-x-full');
+                this.toggleSidebar();
             });
             
             // 設定フォームの初期化
@@ -982,21 +1290,39 @@
             const voiceSelect = document.getElementById('voice-select');
             const updateVoices = () => {
                 let voices = window.speechSynthesis.getVoices();
-                // 実際にその端末・ブラウザで使える日本語音声のみを抽出
                 let japaneseVoices = voices.filter(v => v.lang.includes('ja'));
-
                 const savedVoice = localStorage.getItem('ab_voice_name');
                 
-                // 確実に音声を特定できるように、valueには固有の「voiceURI」を使用
-                voiceSelect.innerHTML = japaneseVoices.map(v => 
+                let optionsHtml = '<optgroup label="ブラウザ標準音声 (無料・オフライン)">';
+                optionsHtml += japaneseVoices.map(v => 
                     `<option value="${v.voiceURI}" ${savedVoice === v.voiceURI ? 'selected' : ''}>${v.name}</option>`
                 ).join('');
+                optionsHtml += '</optgroup>';
+
+                optionsHtml += '<optgroup label="Gemini TTS 高品質音声 (API使用)">';
+                optionsHtml += geminiTTS.voices.map(v => 
+                    `<option value="${v.id}" ${savedVoice === v.id ? 'selected' : ''}>${v.name}</option>`
+                ).join('');
+                optionsHtml += '</optgroup>';
+
+                voiceSelect.innerHTML = optionsHtml;
             };
             window.speechSynthesis.onvoiceschanged = updateVoices;
             updateVoices();
 
-            if (localStorage.getItem('theme') === 'dark' || (!localStorage.getItem('theme') && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
-                document.documentElement.classList.add('dark');
+            const currentTheme = localStorage.getItem('theme') || 'dark';
+            document.documentElement.classList.remove('light', 'sepia', 'dark');
+            document.documentElement.classList.add(currentTheme);
+            this.updateThemeIcons(currentTheme);
+        },
+        toggleSidebar() {
+            const sidebar = document.getElementById('sidebar');
+            if (window.innerWidth >= 768) {
+                // PC/タブレットの場合はマイナスマージンで押し出して画面を広く使う
+                sidebar.classList.toggle('md:-ml-64');
+            } else {
+                // スマホの場合は横からスライドアウト
+                sidebar.classList.toggle('-translate-x-full');
             }
         },
         initMediaSession() {
@@ -1043,6 +1369,11 @@
                 exitBtn.classList.add('hidden');
             }
             lucide.createIcons();
+            // 追加: モード切替後に現在の文へスクロールする
+            setTimeout(() => {
+                const el = document.getElementById('current-sentence');
+                if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }, 100);
         },
 
         async loadInitialData() {
@@ -1154,6 +1485,18 @@
             document.getElementById('header-book-title').textContent = state.currentBook.title;
             container.innerHTML = '';
             
+            // 追加: ハイライト範囲の計算
+            let highlightStart = state.currentBook.currentIndex;
+            let highlightEnd = state.currentBook.currentIndex;
+            
+            const voiceNameId = localStorage.getItem('ab_voice_name');
+            if (voiceNameId && voiceNameId.startsWith('gemini-')) {
+                const chunk = player.getChunk(highlightStart);
+                if (chunk) {
+                    highlightEnd = highlightStart + chunk.size - 1;
+                }
+            }
+            
             state.currentBook.sentences.forEach((text, i) => {
                 const span = document.createElement('span');
                 span.textContent = text;
@@ -1161,9 +1504,13 @@
                 span.dataset.index = i;
                 span.onclick = () => player.jumpTo(i);
 
-                if (i === state.currentBook.currentIndex) {
-                    span.classList.add('sentence-highlight', 'id-current');
-                    span.id = 'current-sentence';
+                // 修正: 計算した範囲全体をハイライトする
+                if (i >= highlightStart && i <= highlightEnd) {
+                    span.classList.add('sentence-highlight');
+                    // 中央スクロールのターゲットにするため、ハイライトの最初の要素にIDを付与
+                    if (i === highlightStart) {
+                        span.id = 'current-sentence';
+                    }
                 }
                 container.appendChild(span);
             });
@@ -1419,6 +1766,85 @@
                     return false;
                 }
             });
+        },
+        async showStoryboard(index) {
+            const container = document.getElementById('storyboard-container');
+            const imgEl = document.getElementById('storyboard-image');
+            const loadingEl = document.getElementById('storyboard-loading');
+            const textContentEl = document.getElementById('storyboard-text-content');
+            
+            // 現在読み上げているブロックのテキスト（約250文字）を字幕レイヤーにセット
+            const chunk = player.getChunk(index);
+            if (chunk) {
+                textContentEl.textContent = chunk.text;
+            }
+
+            container.classList.remove('hidden');
+            imgEl.style.opacity = 0;
+            
+            if (player.imageCache.has(index)) {
+                try {
+                    const cached = player.imageCache.get(index);
+                    if (typeof cached === 'string') {
+                        imgEl.src = cached;
+                        imgEl.style.opacity = 1;
+                        loadingEl.classList.add('hidden');
+                    } else {
+                        loadingEl.classList.remove('hidden');
+                        const dataUrl = await cached;
+                        if (player.isPlaying && state.currentBook.currentIndex === index) {
+                            imgEl.src = dataUrl;
+                            imgEl.style.opacity = 1;
+                            loadingEl.classList.add('hidden');
+                        }
+                    }
+                } catch (e) {
+                    loadingEl.classList.add('hidden');
+                }
+            } else {
+                loadingEl.classList.remove('hidden');
+                if(chunk) {
+                    try {
+                        const prompt = player.createImagePrompt(state.currentBook, index, chunk.size);
+                        const base64 = await geminiImagen.generateImage(prompt, state.settings.storyboardAspect);
+                        player.imageCache.set(index, base64);
+                        if (player.isPlaying && state.currentBook.currentIndex === index) {
+                            imgEl.src = base64;
+                            imgEl.style.opacity = 1;
+                        }
+                    } catch(e){}
+                }
+                loadingEl.classList.add('hidden');
+            }
+        },
+        hideStoryboard(e) {
+            if (e) e.stopPropagation();
+            const container = document.getElementById('storyboard-container');
+            container.classList.add('hidden');
+            
+            // 非表示時は字幕レイヤーも隠す
+            const overlay = document.getElementById('storyboard-text-overlay');
+            overlay.classList.add('hidden', 'opacity-0');
+            
+            // 手動でバツボタンを押して閉じた場合は、単発モードを解除し、紙芝居モード自体もオフにする
+            state.isSingleImageMode = false;
+            if (e && state.settings.storyboardEnabled) {
+                state.settings.storyboardEnabled = false;
+                const cb = document.getElementById('setting-storyboard-enabled');
+                if (cb) cb.checked = false;
+                localStorage.setItem('ab_storyboard_enabled', 'false');
+            }
+        },
+        toggleStoryboardText() {
+            // タップで字幕の表示/非表示を切り替える
+            const overlay = document.getElementById('storyboard-text-overlay');
+            if (overlay.classList.contains('hidden')) {
+                overlay.classList.remove('hidden');
+                setTimeout(() => overlay.classList.remove('opacity-0'), 10);
+            } else {
+                overlay.classList.add('opacity-0');
+                setTimeout(() => overlay.classList.add('hidden'), 300);
+            }
         }
     };
 
@@ -1427,20 +1853,51 @@
     // ==========================================
     const app = {
         async init() {
+            // --- 修正: Gemini Canvas環境の確実な自動判定とボイス設定 ---
+            // Canvas特有の隠し変数（__app_id）やサンドボックス環境を検知するように条件を強化
+            const isCanvasEnv = (typeof __app_id !== 'undefined') || window.location.hostname === '' || window.location.hostname.includes('googleusercontent.com'); 
+            const savedVoice = localStorage.getItem('ab_voice_name');
+            
+            if (isCanvasEnv && !savedVoice) {
+                // 自動的に Zubenelgenubi を設定
+                localStorage.setItem('ab_voice_name', 'gemini-Zubenelgenubi');
+                console.log("Canvas環境を検知: 音声を Zubenelgenubi に自動設定しました。");
+            }
+            // --------------------------------------------------
+
+            // 自動設定をUIに正しく反映させるため、ui.init() の呼び出し位置を判定の【後】に移動
             ui.init();
+
             // 設定の初期反映
-            const savedFont = localStorage.getItem('ab_font') || 'sans';
-            const savedLayout = localStorage.getItem('ab_layout') || 'horizontal';
+            document.getElementById('setting-storyboard-enabled').checked = state.settings.storyboardEnabled;
+            document.getElementById('setting-storyboard-aspect').value = state.settings.storyboardAspect;
+            const styleSelect = document.getElementById('setting-storyboard-style');
+            if (styleSelect) styleSelect.value = state.settings.storyboardStyle;
+            
+            const modelSelect = document.getElementById('setting-storyboard-model');
+            if (modelSelect) modelSelect.value = state.settings.storyboardModel;
+
+            const savedFont = localStorage.getItem('ab_font') || 'serif';
+            const savedLayout = localStorage.getItem('ab_layout') || 'vertical';
+            const savedWeight = state.settings.fontWeight;
+
             const fontRadio = document.querySelector(`input[name="font-type"][value="${savedFont}"]`);
             const layoutRadio = document.querySelector(`input[name="layout-type"][value="${savedLayout}"]`);
+            
             if (fontRadio) fontRadio.checked = true;
             if (layoutRadio) layoutRadio.checked = true;
-            if (savedFont === 'serif') {
-                document.getElementById('text-content').classList.add('font-serif-custom');
-            }
-            if (savedLayout === 'vertical') {
-                document.getElementById('text-view-container').classList.add('writing-mode-vertical');
-            }
+            
+            const weightSelect = document.getElementById('setting-font-weight');
+            if (weightSelect) weightSelect.value = savedWeight;
+
+            const sizeSelect = document.getElementById('setting-font-size');
+            if (sizeSelect) sizeSelect.value = state.settings.fontSize;
+            
+            const textContainer = document.getElementById('text-content');
+            if (savedFont === 'serif') textContainer.classList.add('font-serif-custom');
+            if (savedLayout === 'vertical') document.getElementById('text-view-container').classList.add('writing-mode-vertical');
+            textContainer.classList.add(`font-${savedWeight}`);
+            this.updateFontSize(); // 追加: 文字サイズの初期適用
             
             try {
                 if (state.settings.gasUrl) {
@@ -1452,6 +1909,41 @@
             } catch (e) {
                 console.error("Initialization failed:", e);
                 alert("クラウドとの通信に失敗しました。URLが正しいか確認してください。");
+            }
+        },
+
+        async generateSingleImage() {
+            const book = state.currentBook;
+            if (!book) { alert("本を選択してください。"); return; }
+            
+            const index = book.currentIndex;
+            state.isSingleImageMode = true; // 単発モードフラグをON
+            
+            const container = document.getElementById('storyboard-container');
+            const imgEl = document.getElementById('storyboard-image');
+            const loadingEl = document.getElementById('storyboard-loading');
+            const textContentEl = document.getElementById('storyboard-text-content');
+            
+            const chunk = player.getChunk(index);
+            if (chunk) textContentEl.textContent = chunk.text;
+            
+            container.classList.remove('hidden');
+            imgEl.style.opacity = 0;
+            loadingEl.classList.remove('hidden');
+            
+            try {
+                const prompt = player.createImagePrompt(book, index, chunk.size);
+                const base64 = await geminiImagen.generateImage(prompt, state.settings.storyboardAspect);
+                imgEl.src = base64;
+                imgEl.style.opacity = 1;
+                // 修正: 生成した画像をキャッシュに保存し、再生成の無駄を省く
+                player.imageCache.set(index, base64);
+            } catch (error) {
+                console.error(error);
+                alert("画像生成に失敗しました。APIキーなどを確認してください。");
+                ui.hideStoryboard();
+            } finally {
+                loadingEl.classList.add('hidden');
             }
         },
 
@@ -1584,6 +2076,29 @@
             }
             localStorage.setItem('ab_font', font);
         },
+        updateFontWeight() {
+            const weightSelect = document.getElementById('setting-font-weight');
+            const weight = weightSelect ? weightSelect.value : state.settings.fontWeight;
+            const container = document.getElementById('text-content');
+            container.classList.remove('font-normal', 'font-medium', 'font-bold');
+            container.classList.add(`font-${weight}`);
+            state.settings.fontWeight = weight;
+            localStorage.setItem('ab_font_weight', weight);
+        },
+        updateFontSize(size) {
+            if (size !== undefined) {
+                state.settings.fontSize = size;
+            } else {
+                size = state.settings.fontSize;
+            }
+            const container = document.getElementById('text-content');
+            container.style.fontSize = `${size}rem`;
+            const slider = document.getElementById('setting-font-size');
+            if (slider && slider.value !== size) {
+                slider.value = size;
+            }
+            localStorage.setItem('ab_font_size', size);
+        },
         updateLayout() {
             const layout = document.querySelector('input[name="layout-type"]:checked').value;
             const container = document.getElementById('text-view-container');
@@ -1593,6 +2108,33 @@
                 container.classList.remove('writing-mode-vertical');
             }
             localStorage.setItem('ab_layout', layout);
+        },
+        updateStoryboardSettings() {
+            state.settings.storyboardEnabled = document.getElementById('setting-storyboard-enabled').checked;
+            state.settings.storyboardAspect = document.getElementById('setting-storyboard-aspect').value;
+            
+            const styleSelect = document.getElementById('setting-storyboard-style');
+            if (styleSelect) {
+                state.settings.storyboardStyle = styleSelect.value;
+                localStorage.setItem('ab_storyboard_style', state.settings.storyboardStyle);
+            }
+            
+            const modelSelect = document.getElementById('setting-storyboard-model');
+            if (modelSelect) {
+                state.settings.storyboardModel = modelSelect.value;
+                localStorage.setItem('ab_storyboard_model', state.settings.storyboardModel);
+            }
+
+            localStorage.setItem('ab_storyboard_enabled', state.settings.storyboardEnabled);
+            localStorage.setItem('ab_storyboard_aspect', state.settings.storyboardAspect);
+            
+            // プリロードキャッシュをクリアして新しいスタイルで生成し直す
+            player.clearCache();
+            if (!state.settings.storyboardEnabled) {
+                ui.hideStoryboard();
+            } else if (player.isPlaying) {
+                player.speakCurrent(); // 即座に再描画
+            }
         },
 
         async saveNote() {
@@ -1648,6 +2190,8 @@
             localStorage.setItem('ab_voice_name', voice);
             localStorage.setItem('ab_gas_url', gasUrl); 
             app.updateFont();
+            app.updateFontWeight();
+            app.updateStoryboardSettings();
             
             // 初めてURLが設定された場合、データをロードする
             if (!oldUrl && gasUrl) {
