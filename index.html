@@ -1497,6 +1497,9 @@
                 }
             }
             
+            // 修正: ハイライト範囲の中間位置を計算
+            const highlightCenter = Math.floor((highlightStart + highlightEnd) / 2);
+            
             state.currentBook.sentences.forEach((text, i) => {
                 const span = document.createElement('span');
                 span.textContent = text;
@@ -1507,8 +1510,8 @@
                 // 修正: 計算した範囲全体をハイライトする
                 if (i >= highlightStart && i <= highlightEnd) {
                     span.classList.add('sentence-highlight');
-                    // 中央スクロールのターゲットにするため、ハイライトの最初の要素にIDを付与
-                    if (i === highlightStart) {
+                    // 修正: ハイライトの「中間」にある要素をスクロールターゲットにする
+                    if (i === highlightCenter) {
                         span.id = 'current-sentence';
                     }
                 }
