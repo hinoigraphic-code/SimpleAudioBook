@@ -6,7 +6,7 @@
     <title>AI オーディオブックプレイヤー</title>
     <!-- PWA対応のための設定（強力版） -->
     <link rel="manifest" href="./manifest.json">
-    <meta name="theme-color" content="#0f172a">
+    <meta name="theme-color" content="#000000">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="application-name" content="AudioBook">
@@ -20,18 +20,19 @@
         /* カスタムスクロールバー */
         ::-webkit-scrollbar { width: 6px; height: 6px; }
         ::-webkit-scrollbar-track { background: transparent; }
-        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
-        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+        ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: var(--text-sub); }
         
         /* 読み上げ時のトランジション */
         .sentence-span { 
             transition: all 0.2s ease-in-out; 
             white-space: pre-wrap; /* 元テキストの改行（段落）をそのまま反映する */
+            border-radius: 4px;
         }
         
         /* ローダー */
         .loader {
-            border: 3px solid #f3f3f3; border-top: 3px solid #3b82f6;
+            border: 3px solid var(--hover-bg); border-top: 3px solid var(--accent);
             border-radius: 50%; width: 24px; height: 24px; animation: spin 1s linear infinite;
         }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
@@ -71,22 +72,72 @@
             line-height: 1.8;
         }
         
-        :root { --bg: #ffffff; --text: #1e293b; --text-sub: #475569; --panel: #ffffff; --border: #e2e8f0; --accent: #3b82f6; --hover-bg: #e2e8f0; --highlight-bg: #fef08a; --highlight-text: #0f172a; }
-        .sepia { --bg: #d9cbb0; --text: #0f0d0a; --text-sub: #2e271f; --panel: #d0c0a3; --border: #b8a688; --accent: #785210; --hover-bg: #c9b798; --highlight-bg: #e0b876; --highlight-text: #000000; }
-        .dark { --bg: #0f172a; --text: #f1f5f9; --text-sub: #cbd5e1; --panel: #1e293b; --border: #334155; --accent: #60a5fa; --hover-bg: #334155; --highlight-bg: #1e40af; --highlight-text: #ffffff; }
+        /* e-ink（白黒）端末でもコントラストがはっきり出るようにカラーパレットを再定義 */
+        :root { 
+            --bg: #ffffff; 
+            --text: #000000; /* より真っ黒に */
+            --text-sub: #4b5563; /* 薄すぎないグレー */
+            --panel: #ffffff; 
+            --border: #9ca3af; /* 枠線が飛ばないように少し濃く */
+            --accent: #1e3a8a; /* 濃い青（e-inkでは濃いグレーになり白文字と合う） */
+            --hover-bg: #e5e7eb; 
+            /* ライトテーマ：白背景と黒文字の中間となる明度のグレー（e-inkでも確実に認識可能） */
+            --highlight-bg: #b0b8c4; 
+        }
+        .sepia { 
+            --bg: #f4ecd8; /* コントラストを上げるため背景を明るく */
+            --text: #1c1917; 
+            --text-sub: #57534e; 
+            --panel: #e7dec8; 
+            --border: #a8a29e; 
+            --accent: #451a03; 
+            --hover-bg: #d6ccae; 
+            /* セピアテーマ：背景より一段濃い落ち着いたベージュ・グレー */
+            --highlight-bg: #c2b696; 
+        }
+        .dark { 
+            --bg: #000000; /* e-inkで完全な黒になるように純黒に */
+            --text: #ffffff; 
+            --text-sub: #d1d5db; /* 明るめのグレー */
+            --panel: #111827; 
+            --border: #6b7280; 
+            --accent: #93c5fd; 
+            --hover-bg: #1f2937; 
+            /* ダークテーマ：純黒背景から浮き出るダークグレー。白文字が読みやすい明度 */
+            --highlight-bg: #4b5563; 
+        }
+        
         body { background-color: var(--bg); color: var(--text); }
         
         /* 独自テーマ対応の追加クラス */
         .sentence-hover:hover { background-color: var(--hover-bg); }
-        .sentence-highlight { background-color: var(--highlight-bg) !important; color: var(--highlight-text) !important; font-weight: bold; box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05); }
-        /* テーマ対応のためのTailwindクラス上書き */
+        
+        /* e-inkでも見やすく、かつ文字色を維持して美観を保つハイライト */
+        .sentence-highlight { 
+            background-color: var(--highlight-bg) !important; 
+            color: var(--text) !important; /* 文字色は反転させず、テーマの基本色をそのまま使用 */
+            font-weight: bold; 
+            border-radius: 4px;
+        }
+        
+        /* テーマ対応のためのTailwindクラス強力上書き */
         .bg-white { background-color: var(--panel) !important; }
-        .bg-slate-50 { background-color: var(--bg) !important; }
-        .bg-slate-100 { background-color: var(--border) !important; }
+        .bg-slate-50, .bg-slate-100 { background-color: var(--bg) !important; }
         .border-slate-200, .border-slate-300 { border-color: var(--border) !important; }
         .text-slate-800, .text-slate-700 { color: var(--text) !important; }
-        .text-slate-500 { color: var(--text-sub) !important; }
-        input, textarea, select { background-color: var(--bg) !important; color: var(--text) !important; border-color: var(--border) !important; }
+        .text-slate-600, .text-slate-500, .text-slate-400 { color: var(--text-sub) !important; }
+        
+        /* 入力要素のコントラスト確保 */
+        input, textarea, select { 
+            background-color: var(--panel) !important; 
+            color: var(--text) !important; 
+            border-color: var(--border) !important; 
+        }
+        
+        /* e-inkでボタンの文字が消えないように、明度差を強制 */
+        .bg-blue-600 { background-color: var(--accent) !important; color: var(--bg) !important; }
+        .hover\:bg-blue-700:hover { background-color: var(--text) !important; }
+        .text-blue-600 { color: var(--accent) !important; }
         .accent-blue-600 { accent-color: var(--accent) !important; }
 
         /* セーフエリア対応（ナビゲーションバー被り防止） */
@@ -115,7 +166,6 @@
 <body class="bg-slate-50 text-slate-800 h-[100dvh] flex overflow-hidden font-sans text-sm md:text-base dark:bg-slate-900 dark:text-slate-100">
 
     <!-- サイドバー: 本のリスト -->
-    <!-- PC/タブレット時もトグルできるように md:-ml-64 などを活用する構造に変更 -->
     <aside id="sidebar" class="w-64 shrink-0 bg-white border-r border-slate-200 flex flex-col z-30 transition-all duration-300 absolute md:relative h-full -translate-x-full md:translate-x-0">
         <div class="p-4 border-b border-slate-200 flex justify-between items-center bg-slate-100">
             <h1 class="font-bold text-lg flex items-center gap-2 text-slate-700">
@@ -176,7 +226,6 @@
 
         <!-- 画像表示エリア (紙芝居モード) -->
         <div id="storyboard-container" class="absolute inset-0 z-20 top-14 bottom-[88px] bg-slate-900 flex items-center justify-center overflow-hidden hidden transition-opacity duration-500 cursor-pointer" onclick="ui.toggleStoryboardText()">
-            <!-- object-contain で画面にはみ出さずに表示 -->
             <img id="storyboard-image" class="w-full h-full object-contain opacity-0 transition-opacity duration-1000" src="" alt="情景画像">
             <div id="storyboard-loading" class="absolute flex flex-col items-center justify-center text-white/70 hidden">
                 <div class="loader mb-2 !border-white/20 !border-t-white"></div>
@@ -246,11 +295,14 @@
                 </div>
                 
                 <div class="flex items-center gap-2">
-                    <!-- 単発の画像生成ボタンを追加 -->
-                    <button onclick="app.generateSingleImage()" class="p-1.5 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded-full transition-colors" title="現在のシーンの画像を1枚生成">
-                        <i data-lucide="image" class="w-5 h-5"></i>
+                    <button id="btn-toggle-storyboard" onclick="app.toggleStoryboard()" class="p-1.5 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded-full transition-colors relative" title="紙芝居モード(自動画像生成)をオン/オフ">
+                        <i data-lucide="monitor-play" class="w-5 h-5"></i>
+                        <span id="storyboard-status-badge" class="absolute top-0 right-0 w-2 h-2 rounded-full border border-white bg-slate-300"></span>
                     </button>
-                    <button onclick="ui.openModal('add-note-modal')" class="flex items-center gap-1 text-sm bg-amber-100 text-amber-800 hover:bg-amber-200 py-1.5 px-3 rounded shadow-sm transition-colors border border-amber-200 font-medium">
+                    <button onclick="app.generateSingleImage()" class="p-1.5 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded-full transition-colors" title="現在のシーンの画像を1枚生成">
+                        <i data-lucide="camera" class="w-5 h-5"></i>
+                    </button>
+                    <button onclick="ui.openModal('add-note-modal')" class="flex items-center gap-1 text-sm border-slate-300 hover:bg-slate-200 py-1.5 px-3 rounded shadow-sm transition-colors border font-medium">
                         <i data-lucide="pen-line" class="w-4 h-4"></i> メモ
                     </button>
                 </div>
@@ -350,7 +402,6 @@
                         </label>
                     </div>
                 </div>
-                <!-- 追加: フォントウェイト（文字の太さ）設定 -->
                 <div>
                     <label class="block text-sm font-medium text-slate-700 mb-1">文字の太さ</label>
                     <select id="setting-font-weight" class="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500 bg-white" onchange="app.updateFontWeight()">
@@ -359,7 +410,6 @@
                         <option value="bold">太い</option>
                     </select>
                 </div>
-                <!-- 追加: 文字サイズ設定 -->
                 <div>
                     <label class="block text-sm font-medium text-slate-700 mb-1">文字サイズ</label>
                     <select id="setting-font-size" class="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500 bg-white" onchange="app.updateFontSize(this.value)">
@@ -375,11 +425,7 @@
                     </select>
                 </div>
                 <div>
-                    <label class="block text-sm font-medium text-slate-700 mb-2 border-b pb-1">紙芝居モード (Gemini TTS時のみ)</label>
-                    <div class="flex items-center justify-between mb-3">
-                        <label class="text-sm text-slate-700">画像生成を有効にする</label>
-                        <input type="checkbox" id="setting-storyboard-enabled" class="w-4 h-4 text-blue-600 rounded" onchange="app.updateStoryboardSettings()">
-                    </div>
+                    <label class="block text-sm font-medium text-slate-700 mb-2 border-b pb-1">紙芝居モード設定 (Gemini TTS時のみ)</label>
                     <div class="mb-3">
                         <label class="block text-sm text-slate-700 mb-1">画像生成モデル</label>
                         <input type="text" id="setting-storyboard-model" class="w-full text-sm border border-slate-300 rounded px-2 py-1 focus:outline-none focus:border-blue-500" placeholder="例: gemini-2.5-flash-image-preview" onchange="app.updateStoryboardSettings()">
@@ -450,15 +496,15 @@
     <!-- モーダル: メモの追加 -->
     <div id="add-note-modal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center hidden opacity-0 transition-opacity">
         <div class="bg-white rounded-lg shadow-xl w-full max-w-lg mx-4 flex flex-col transform scale-95 transition-transform" id="add-note-modal-content">
-            <div class="p-4 border-b border-slate-200 flex justify-between items-center bg-amber-50 rounded-t-lg">
-                <h3 class="font-bold text-lg text-amber-900 flex items-center gap-2">
-                    <i data-lucide="pen-line" class="w-5 h-5 text-amber-600"></i> メモを追加
+            <div class="p-4 border-b border-slate-200 flex justify-between items-center bg-slate-100 rounded-t-lg">
+                <h3 class="font-bold text-lg text-slate-800 flex items-center gap-2">
+                    <i data-lucide="pen-line" class="w-5 h-5 text-slate-600"></i> メモを追加
                 </h3>
                 <button onclick="ui.closeModal('add-note-modal')" class="text-slate-400 hover:text-slate-600"><i data-lucide="x" class="w-5 h-5"></i></button>
             </div>
             <div class="p-5 space-y-4">
-                <div class="bg-slate-50 p-3 rounded border border-slate-200 text-sm text-slate-600 relative">
-                    <div class="absolute -top-2 -left-2 bg-slate-200 text-slate-500 text-[10px] px-1.5 py-0.5 rounded shadow-sm border border-slate-300">対象の文脈</div>
+                <div class="bg-slate-50 p-3 rounded border border-slate-300 text-sm text-slate-700 relative">
+                    <div class="absolute -top-2 -left-2 bg-slate-200 text-slate-600 text-[10px] px-1.5 py-0.5 rounded shadow-sm border border-slate-400">対象の文脈</div>
                     <p id="note-context-preview" class="italic mt-1 line-clamp-3">...</p>
                 </div>
                 <div>
@@ -466,17 +512,17 @@
                         <label class="block text-sm font-medium text-slate-700">メモ内容</label>
                         <div class="flex items-center gap-2">
                             <span id="note-voice-timer" class="text-xs text-red-500 font-medium hidden">00:00</span>
-                            <button type="button" id="note-voice-btn" onclick="audioRecorder.toggleRecording('new-note-text', 'note-voice-btn', 'note-voice-timer')" class="bg-slate-100 text-slate-500 p-1.5 rounded-full hover:bg-slate-200 transition-colors flex items-center justify-center" title="音声入力">
+                            <button type="button" id="note-voice-btn" onclick="audioRecorder.toggleRecording('new-note-text', 'note-voice-btn', 'note-voice-timer')" class="bg-slate-200 text-slate-600 p-1.5 rounded-full hover:bg-slate-300 transition-colors flex items-center justify-center" title="音声入力">
                                 <i data-lucide="mic" class="w-3.5 h-3.5"></i>
                             </button>
                         </div>
                     </div>
-                    <textarea id="new-note-text" class="w-full h-32 border border-slate-300 rounded px-3 py-2 resize-none focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500 text-sm" placeholder="感想や気になったことを記録..."></textarea>
+                    <textarea id="new-note-text" class="w-full h-32 border border-slate-300 rounded px-3 py-2 resize-none focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 text-sm" placeholder="感想や気になったことを記録..."></textarea>
                 </div>
             </div>
             <div class="p-4 border-t border-slate-200 bg-slate-50 rounded-b-lg flex justify-end gap-2">
                 <button onclick="ui.closeModal('add-note-modal')" class="px-4 py-2 rounded text-slate-600 hover:bg-slate-200 transition-colors text-sm font-medium">キャンセル</button>
-                <button onclick="app.saveNote()" class="px-4 py-2 bg-amber-600 text-white rounded hover:bg-amber-700 transition-colors shadow-sm text-sm font-medium flex items-center gap-2">
+                <button onclick="app.saveNote()" class="px-4 py-2 bg-slate-800 text-white rounded hover:bg-slate-900 transition-colors shadow-sm text-sm font-medium flex items-center gap-2">
                     <i data-lucide="check" class="w-4 h-4"></i> 記録する
                 </button>
             </div>
@@ -496,18 +542,18 @@
         notes: [],
         activePanel: null,
         preventSpoilers: true,
-        isSingleImageMode: false, // 追加: 単発画像モードフラグ
+        isSingleImageMode: false,
         settings: {
             apiKey: localStorage.getItem('ab_api_key') || apiKey,
             model: localStorage.getItem('ab_model') || "gemini-2.5-flash",
             font: localStorage.getItem('ab_font') || 'serif',
-            fontWeight: localStorage.getItem('ab_font_weight') || 'normal', // 追加: フォントウェイト
-            fontSize: localStorage.getItem('ab_font_size') || '1.0', // 追加: 文字サイズ
+            fontWeight: localStorage.getItem('ab_font_weight') || 'normal',
+            fontSize: localStorage.getItem('ab_font_size') || '1.0',
             gasUrl: localStorage.getItem('ab_gas_url') || DEFAULT_GAS_URL,
             storyboardEnabled: localStorage.getItem('ab_storyboard_enabled') === 'true',
-            storyboardModel: localStorage.getItem('ab_storyboard_model') || 'gemini-2.5-flash-image-preview', // 追加: 画像生成モデル設定
+            storyboardModel: localStorage.getItem('ab_storyboard_model') || 'gemini-2.5-flash-image-preview',
             storyboardAspect: localStorage.getItem('ab_storyboard_aspect') || '9:16',
-            storyboardStyle: localStorage.getItem('ab_storyboard_style') || 'anime'
+            storyboardStyle: localStorage.getItem('ab_storyboard_style') || 'photorealistic' // デフォルトを完全実写調に変更
         },
         mediaSessionInitialized: false
     };
@@ -523,7 +569,6 @@
             const payloadString = JSON.stringify({ action: action, payload: payload });
             
             try {
-                // 完全クラウド化に伴い、GASからのレスポンスを正しく受け取るため text/plain でPOST
                 const response = await fetch(state.settings.gasUrl, {
                     method: 'POST',
                     headers: { 'Content-Type': 'text/plain' },
@@ -557,7 +602,7 @@
         async addBook(book) {
             const res = await this.callCloud('addBook', book);
             book.fileId = res.fileId;
-            delete book.text; // ローカルでのメモリ節約のため不要なプロパティを消す
+            delete book.text; 
             return book;
         },
 
@@ -626,7 +671,6 @@
         ],
         async generateAudio(text, voiceName) {
             const apiKeyToUse = state.settings.apiKey;
-            // Canvas環境の自動注入を利用するため空チェックを削除
             
             const requestBody = {
                 contents: [{ parts: [{ text: text }] }],
@@ -676,7 +720,6 @@
             const apiKeyToUse = state.settings.apiKey;
             const modelToUse = state.settings.storyboardModel || 'gemini-2.5-flash-image-preview';
 
-            // 修正: エラー時に最大5回まで待機時間を伸ばしながら自動再挑戦する（息切れの防止）
             const maxRetries = 5;
             let delay = 1000;
 
@@ -699,7 +742,6 @@
                             return `data:image/png;base64,${data.predictions[0].bytesBase64Encoded}`;
                         }
                     } else {
-                        // 修正: 自由入力されたモデル名がURLに反映されるように変更
                         const payload = {
                             contents: [{parts: [{ text: promptText }]}],
                             generationConfig: { responseModalities: ['TEXT', 'IMAGE'] }
@@ -719,9 +761,9 @@
                     }
                     throw new Error("画像の生成に失敗しました");
                 } catch (error) {
-                    if (i === maxRetries - 1) throw error; // 最後の挑戦で失敗したらエラーを投げる
+                    if (i === maxRetries - 1) throw error; 
                     await new Promise(resolve => setTimeout(resolve, delay));
-                    delay *= 2; // 1秒、2秒、4秒…と待機時間を倍にする
+                    delay *= 2; 
                 }
             }
         }
@@ -739,7 +781,7 @@
         silentAudio: new Audio('data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA'),
 
         audioCache: new Map(),
-        imageCache: new Map(), // 画像の先読みキャッシュ
+        imageCache: new Map(), 
         cachedBookId: null,
 
         getChunk(startIndex) {
@@ -758,7 +800,6 @@
         createImagePrompt(book, chunkStartIndex, chunkSize) {
             const chunkText = book.sentences.slice(chunkStartIndex, chunkStartIndex + chunkSize).join("");
             
-            // 修正: 過去のテキストが長すぎないよう、直近の約1000文字に制限する（消化不良の防止）
             let pastText = book.sentences.slice(0, chunkStartIndex).join("");
             if (pastText.length > 1000) pastText = "..." + pastText.slice(-1000);
             
@@ -767,7 +808,6 @@
                 styleDescription = "完全な実写、写真のようなリアルさ、シネマティックライティング、実在する風景や人物のような圧倒的なディテール、高品質、高画質";
             }
 
-            // 修正: プロンプト内に直接アスペクト比の指示を盛り込む（空振りの防止）
             const aspectText = state.settings.storyboardAspect === "9:16" ? "縦長 (Aspect ratio 9:16)" : "横長 (Aspect ratio 16:9)";
 
             return `以下のテキストの情景を視覚的に表現する美しいイラスト/画像を作成してください。
@@ -823,19 +863,17 @@
             let targetIndex = book.currentIndex;
             const isStoryboardOn = state.settings.storyboardEnabled;
             
-            // 最大2チャンク先までを順番にチェック
             for (let i = 0; i < 3; i++) {
                 if (targetIndex >= book.sentences.length) break;
                 const chunk = this.getChunk(targetIndex);
                 if (!chunk || !chunk.text) break;
                 
-                if (i > 0) { // i=0 は現在のチャンクなので先読み対象外
+                if (i > 0) { 
                     const currentIndexForFetch = targetIndex;
                     let hasAudio = this.audioCache.has(currentIndexForFetch);
                     let hasImage = this.imageCache.has(currentIndexForFetch) || !isStoryboardOn;
                     
                     if (!hasAudio || !hasImage) {
-                        // 音声の先読み
                         if (!hasAudio) {
                             const fetchPromise = geminiTTS.generateAudio(chunk.text, geminiVoice.voiceName).then(audioBlob => {
                                 const audioUrl = URL.createObjectURL(audioBlob);
@@ -851,7 +889,6 @@
                             this.audioCache.set(currentIndexForFetch, fetchPromise);
                         }
 
-                        // 画像の先読み
                         if (isStoryboardOn && !hasImage) {
                             const prompt = this.createImagePrompt(book, currentIndexForFetch, chunk.size);
                             const imgPromise = geminiImagen.generateImage(prompt, state.settings.storyboardAspect).then(base64 => {
@@ -865,7 +902,6 @@
                             this.imageCache.set(currentIndexForFetch, imgPromise);
                         }
 
-                        // リクエストの直列化と負荷軽減のため、1つ投げて少し待つ
                         setTimeout(() => this.preloadNextMedia(), 1500);
                         break; 
                     }
@@ -912,16 +948,14 @@
             const voiceNameId = localStorage.getItem('ab_voice_name');
             const isGeminiTTS = voiceNameId && voiceNameId.startsWith('gemini-');
 
-            // --- 紙芝居UIの制御 ---
             if (state.isSingleImageMode) {
-                // 単発画像モードの時は何もしない（画像を維持）
+                // 単発画像モードの時は何もしない
             } else if (isGeminiTTS && state.settings.storyboardEnabled) {
                 ui.showStoryboard(book.currentIndex);
             } else {
                 ui.hideStoryboard();
             }
 
-            // --- Gemini TTSを使用する場合 ---
             if (isGeminiTTS) {
                 const geminiVoice = geminiTTS.voices.find(v => v.id === voiceNameId);
                 const currentIndex = book.currentIndex;
@@ -929,7 +963,7 @@
                 if (!chunk || !chunk.text) { this.advanceBy(chunk ? chunk.size : 1); return; }
                 
                 this.cleanUpCache();
-                this.preloadNextMedia(); // メディアの先読み
+                this.preloadNextMedia(); 
 
                 try {
                     let audioUrl;
@@ -967,7 +1001,6 @@
                     this.pause();
                 }
             } 
-            // --- 既存の無料TTSを使用する場合 ---
             else {
                 const text = book.sentences[book.currentIndex];
                 if (!text || !text.trim().replace(/[\n\r]/g, '')) { this.advanceBy(1); return; }
@@ -1047,9 +1080,7 @@
             if (!text || !state.currentBook || !state.currentBook.sentences) return;
 
             const apiKeyToUse = state.settings.apiKey;
-            // Canvas環境の自動注入を利用するため空チェックを削除
 
-            // UI更新
             input.value = '';
             ui.addChatMessage("You", text, false);
             const btn = document.getElementById('chat-submit-btn');
@@ -1060,17 +1091,11 @@
                 const book = state.currentBook;
                 let contextText = "";
                 
-                // ネタバレ防止の制御：現在地までか、全文か
+                // ネタバレ防止の制御：現在地までか、全文か（文字数制限を撤廃し、完全に全文を渡す）
                 if (state.preventSpoilers) {
                     contextText = book.sentences.slice(0, book.currentIndex + 1).join("");
                 } else {
                     contextText = book.sentences.join("");
-                }
-
-                // API制限を考慮し、長すぎる場合は後ろから切り詰める（最新の文脈を優先）
-                const MAX_CHARS = 1500; 
-                if (contextText.length > MAX_CHARS) {
-                    contextText = contextText.slice(-MAX_CHARS);
                 }
 
                 const systemInstruction = `あなたはオーディオブックアプリの読書アシスタントです。ユーザーは現在「${book.title}」を読んでいます。以下のテキストは、ユーザーが${state.preventSpoilers ? "現在までに読んだ" : "読んでいる本の全"}内容です。このテキストの内容に基づいて、ユーザーの質問や要約の要求に的確に答えてください。指定されたテキスト以外の展開は推測しないでください。\n\n【コンテキストテキスト】\n${contextText}`;
@@ -1122,7 +1147,6 @@
 
         async startRecording(targetId, btnId, timerId) {
             const apiKeyToUse = state.settings.apiKey;
-            // Canvas環境の自動注入を利用するため空チェックを削除
 
             try {
                 const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -1273,7 +1297,6 @@
             lucide.createIcons();
             this.initMediaSession();
             
-            // サイドバーのトグル（モバイル/PC共通対応）
             document.getElementById('open-sidebar-btn').addEventListener('click', () => {
                 this.toggleSidebar();
             });
@@ -1281,7 +1304,6 @@
                 this.toggleSidebar();
             });
             
-            // 設定フォームの初期化
             document.getElementById('setting-api-key').value = state.settings.apiKey;
             document.getElementById('setting-model').value = state.settings.model;
             document.getElementById('setting-gas-url').value = state.settings.gasUrl;
@@ -1314,14 +1336,14 @@
             document.documentElement.classList.remove('light', 'sepia', 'dark');
             document.documentElement.classList.add(currentTheme);
             this.updateThemeIcons(currentTheme);
+
+            this.updateStoryboardToggleBtn();
         },
         toggleSidebar() {
             const sidebar = document.getElementById('sidebar');
             if (window.innerWidth >= 768) {
-                // PC/タブレットの場合はマイナスマージンで押し出して画面を広く使う
                 sidebar.classList.toggle('md:-ml-64');
             } else {
-                // スマホの場合は横からスライドアウト
                 sidebar.classList.toggle('-translate-x-full');
             }
         },
@@ -1369,7 +1391,6 @@
                 exitBtn.classList.add('hidden');
             }
             lucide.createIcons();
-            // 追加: モード切替後に現在の文へスクロールする
             setTimeout(() => {
                 const el = document.getElementById('current-sentence');
                 if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -1382,7 +1403,6 @@
             this.renderBookList();
             
             if (state.books.length > 0) {
-                // 最も最近更新された本をロード
                 app.selectBook(state.books[0].id);
             } else {
                 document.getElementById('book-list-container').innerHTML = '<div class="text-slate-400 text-sm p-4 text-center">クラウドに本がありません。追加してください。</div>';
@@ -1400,23 +1420,21 @@
 
             state.books.forEach(book => {
                 const isActive = state.currentBook && state.currentBook.id === book.id;
-                // sentencesがまだダウンロードされていない場合の考慮
                 const totalSentences = book.totalSentences || (book.sentences ? book.sentences.length : 1);
                 const progress = totalSentences > 0 
                     ? Math.floor((book.currentIndex / totalSentences) * 100) : 0;
                 
                 const div = document.createElement('div');
-                div.className = `p-3 mb-2 rounded cursor-pointer transition-colors border-l-4 group flex justify-between items-center ${isActive ? 'bg-blue-50 border-blue-500 shadow-sm' : 'bg-white border-transparent hover:bg-slate-100 border-slate-200'}`;
+                div.className = `p-3 mb-2 rounded cursor-pointer transition-colors border-l-4 group flex justify-between items-center ${isActive ? 'bg-slate-100 border-blue-600 shadow-sm' : 'bg-transparent border-transparent hover:bg-slate-100 border-slate-200'}`;
                 
                 const infoDiv = document.createElement('div');
                 infoDiv.className = 'overflow-hidden flex-1';
                 infoDiv.onclick = () => app.selectBook(book.id);
                 
                 const title = document.createElement('div');
-                title.className = `font-medium truncate text-sm ${isActive ? 'text-blue-800' : 'text-slate-700'}`;
+                title.className = `font-medium truncate text-sm ${isActive ? 'text-slate-900 font-bold' : 'text-slate-700'}`;
                 title.textContent = book.title;
                 
-                // 文字数と時間の計算（リスト用）※テキストダウンロード済みの場合のみ正確に表示
                 let statsHtml = '';
                 if (book.sentences) {
                     const totalChars = book.sentences.join('').length;
@@ -1447,21 +1465,20 @@
                 }
 
                 const statsText = document.createElement('div');
-                statsText.className = 'text-[10px] text-slate-400 mt-1.5 flex flex-col gap-0.5 tracking-wider';
+                statsText.className = 'text-[10px] text-slate-500 mt-1.5 flex flex-col gap-0.5 tracking-wider';
                 statsText.innerHTML = statsHtml;
 
                 const progText = document.createElement('div');
-                progText.className = 'text-xs text-slate-500 mt-1 flex items-center gap-2';
-                progText.innerHTML = `<div class="w-16 h-1.5 bg-slate-200 rounded-full overflow-hidden"><div class="h-full bg-blue-400" style="width: ${progress}%"></div></div> ${progress}%`;
+                progText.className = 'text-xs text-slate-600 mt-1 flex items-center gap-2';
+                progText.innerHTML = `<div class="w-16 h-1.5 bg-slate-300 rounded-full overflow-hidden"><div class="h-full bg-slate-600" style="width: ${progress}%"></div></div> ${progress}%`;
                 
                 infoDiv.appendChild(title);
                 infoDiv.appendChild(progText);
-                infoDiv.appendChild(statsText); // タイトルとプログレスバーの下に追加
+                infoDiv.appendChild(statsText);
                 div.appendChild(infoDiv);
                 
-                // 削除ボタン
                 const delBtn = document.createElement('button');
-                delBtn.className = 'p-2 text-slate-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity rounded-full hover:bg-slate-200';
+                delBtn.className = 'p-2 text-slate-400 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-opacity rounded-full hover:bg-slate-200';
                 delBtn.innerHTML = '<i data-lucide="trash-2" class="w-4 h-4"></i>';
                 delBtn.onclick = (e) => {
                     e.stopPropagation();
@@ -1485,7 +1502,6 @@
             document.getElementById('header-book-title').textContent = state.currentBook.title;
             container.innerHTML = '';
             
-            // 追加: ハイライト範囲の計算
             let highlightStart = state.currentBook.currentIndex;
             let highlightEnd = state.currentBook.currentIndex;
             
@@ -1497,20 +1513,17 @@
                 }
             }
             
-            // 修正: ハイライト範囲の中間位置を計算
             const highlightCenter = Math.floor((highlightStart + highlightEnd) / 2);
             
             state.currentBook.sentences.forEach((text, i) => {
                 const span = document.createElement('span');
                 span.textContent = text;
-                span.className = 'sentence-span inline-block p-1 rounded cursor-pointer transition-colors sentence-hover';
+                span.className = 'sentence-span inline-block py-1 px-1.5 mx-0.5 rounded cursor-pointer transition-colors sentence-hover';
                 span.dataset.index = i;
                 span.onclick = () => player.jumpTo(i);
 
-                // 修正: 計算した範囲全体をハイライトする
                 if (i >= highlightStart && i <= highlightEnd) {
                     span.classList.add('sentence-highlight');
-                    // 修正: ハイライトの「中間」にある要素をスクロールターゲットにする
                     if (i === highlightCenter) {
                         span.id = 'current-sentence';
                     }
@@ -1518,7 +1531,6 @@
                 container.appendChild(span);
             });
 
-            // 自動スクロール
             const el = document.getElementById('current-sentence');
             if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
         },
@@ -1530,19 +1542,16 @@
             const current = book.currentIndex;
             const percentage = total > 0 ? (current / total) * 100 : 0;
             
-            // スライダーの値を更新するように変更
             const slider = document.getElementById('progress-slider');
             if (slider) {
                 slider.value = percentage;
             }
             document.getElementById('progress-text').textContent = `${Math.floor(percentage)}%`;
 
-            // 文字数と時間の計算
             const totalChars = book.sentences.join('').length;
             const readChars = book.sentences.slice(0, current).join('').length;
             const remainingChars = totalChars - readChars;
 
-            // 1秒あたりの平均文字数 (標準速度で約6文字/秒と仮定)
             const charsPerSecond = 6 * player.rate;
             
             const totalSeconds = totalChars / charsPerSecond;
@@ -1583,34 +1592,28 @@
         toggleRightPanel(panelName) {
             const panel = document.getElementById('right-panel');
             
-            // すでに同じパネルが開いている場合は閉じる
             if (state.activePanel === panelName && !panel.classList.contains('hidden') && !panel.classList.contains('translate-x-full')) {
                 this.closeRightPanel();
                 return;
             }
 
-            // 全パネルコンテンツを隠す
             ['chat', 'notes', 'settings'].forEach(p => {
                 document.getElementById(`panel-${p}`).classList.add('hidden');
             });
 
-            // 対象パネルを表示
             document.getElementById(`panel-${panelName}`).classList.remove('hidden');
             
-            // タイトル設定
             const titles = { chat: 'AI アシスタント', notes: 'メモ一覧', settings: '設定' };
             const icons = { chat: 'message-square-text', notes: 'notebook-pen', settings: 'settings' };
             document.getElementById('panel-title').innerHTML = `<i data-lucide="${icons[panelName]}" class="w-4 h-4"></i> ${titles[panelName]}`;
             
-            // パネル本体を表示
             panel.classList.remove('hidden');
-            setTimeout(() => panel.classList.remove('translate-x-full'), 10); // アニメーション用
+            setTimeout(() => panel.classList.remove('translate-x-full'), 10); 
             state.activePanel = panelName;
             
-            // ボタンのアクティブ状態更新
             document.querySelectorAll('.panel-btn').forEach(btn => {
-                if(btn.dataset.panel === panelName) btn.classList.add('bg-slate-200', 'text-blue-600');
-                else btn.classList.remove('bg-slate-200', 'text-blue-600');
+                if(btn.dataset.panel === panelName) btn.classList.add('bg-slate-200', 'text-slate-900');
+                else btn.classList.remove('bg-slate-200', 'text-slate-900');
             });
 
             lucide.createIcons();
@@ -1623,10 +1626,9 @@
         closeRightPanel() {
             const panel = document.getElementById('right-panel');
             panel.classList.add('translate-x-full');
-            // モバイル時の隠蔽用
             setTimeout(() => { if(panel.classList.contains('translate-x-full')) panel.classList.add('hidden'); }, 300);
             state.activePanel = null;
-            document.querySelectorAll('.panel-btn').forEach(btn => btn.classList.remove('bg-slate-200', 'text-blue-600'));
+            document.querySelectorAll('.panel-btn').forEach(btn => btn.classList.remove('bg-slate-200', 'text-slate-900'));
         },
 
         openModal(id) {
@@ -1634,7 +1636,6 @@
             const content = document.getElementById(`${id}-content`);
             modal.classList.remove('hidden');
             
-            // メモ追加モーダル特有の処理
             if (id === 'add-note-modal' && state.currentBook && state.currentBook.sentences) {
                  const book = state.currentBook;
                  const textPreview = book.sentences[book.currentIndex] || "テキストがありません";
@@ -1643,7 +1644,6 @@
                  setTimeout(() => document.getElementById('new-note-text').focus(), 100);
             }
 
-            // アニメーション
             setTimeout(() => {
                 modal.classList.remove('opacity-0');
                 content.classList.remove('scale-95');
@@ -1657,7 +1657,7 @@
             content.classList.add('scale-95');
             setTimeout(() => {
                 modal.classList.add('hidden');
-            }, 300); // transition時間と合わせる
+            }, 300); 
         },
 
         addChatMessage(sender, text, isSystem = false) {
@@ -1665,23 +1665,21 @@
             const div = document.createElement('div');
             
             if (isSystem) {
-                div.className = 'text-center text-xs text-red-500 my-2';
+                div.className = 'text-center text-xs text-red-600 font-bold my-2';
                 div.textContent = text;
             } else if (sender === 'You') {
                 div.className = 'flex justify-end';
-                div.innerHTML = `<div class="bg-blue-600 text-white rounded-2xl rounded-tr-sm px-4 py-2 max-w-[85%] shadow-sm text-sm break-words">${this.escapeHTML(text)}</div>`;
+                div.innerHTML = `<div class="bg-slate-700 text-white rounded-2xl rounded-tr-sm px-4 py-2 max-w-[85%] shadow-sm text-sm break-words">${this.escapeHTML(text)}</div>`;
             } else {
                 div.className = 'flex justify-start';
-                // マークダウンをHTMLに変換してリッチテキストにする
                 const parsedHTML = marked.parse(text);
                 const jsSafeText = text.replace(/\\/g, "\\\\").replace(/'/g, "\\'").replace(/\n/g, "\\n").replace(/\r/g, "");
                 
                 div.innerHTML = `
                     <div class="flex flex-col gap-1 max-w-[90%] w-full">
-                        <!-- prose クラスを追加してブログのような綺麗な見た目にする -->
-                        <div class="bg-white border border-slate-200 text-slate-700 rounded-2xl rounded-tl-sm px-4 py-3 shadow-sm text-sm break-words leading-relaxed prose prose-sm prose-slate max-w-none">${parsedHTML}</div>
+                        <div class="bg-white border border-slate-300 text-slate-800 rounded-2xl rounded-tl-sm px-4 py-3 shadow-sm text-sm break-words leading-relaxed prose prose-sm prose-slate max-w-none">${parsedHTML}</div>
                         <div class="flex justify-end">
-                            <button class="flex items-center gap-1 text-[10px] text-slate-400 hover:text-blue-600 transition-colors px-2 py-1 rounded hover:bg-slate-200" onclick="player.speakFreeText('${jsSafeText}')" title="読み上げる">
+                            <button class="flex items-center gap-1 text-[10px] text-slate-500 hover:text-slate-900 transition-colors px-2 py-1 rounded hover:bg-slate-200" onclick="player.speakFreeText('${jsSafeText}')" title="読み上げる">
                                 <i data-lucide="volume-2" class="w-3 h-3"></i> 読み上げる
                             </button>
                         </div>
@@ -1698,22 +1696,21 @@
             container.innerHTML = '';
 
             if (!state.currentBook) {
-                container.innerHTML = '<div class="text-sm text-slate-400 text-center mt-10">本が選択されていません</div>';
+                container.innerHTML = '<div class="text-sm text-slate-500 text-center mt-10">本が選択されていません</div>';
                 return;
             }
 
             if (state.notes.length === 0) {
-                container.innerHTML = '<div class="text-sm text-slate-400 text-center mt-10 flex flex-col items-center gap-2"><i data-lucide="notebook" class="w-8 h-8 opacity-50"></i> メモはありません。<br>気になったシーンでメモを追加しましょう。</div>';
+                container.innerHTML = '<div class="text-sm text-slate-500 text-center mt-10 flex flex-col items-center gap-2"><i data-lucide="notebook" class="w-8 h-8 opacity-50"></i> メモはありません。<br>気になったシーンでメモを追加しましょう。</div>';
                 lucide.createIcons();
                 return;
             }
 
             state.notes.forEach(note => {
                 const div = document.createElement('div');
-                div.className = 'bg-white p-3 rounded-lg shadow-sm border border-slate-200 cursor-pointer hover:border-amber-300 transition-colors group';
+                div.className = 'bg-white p-3 rounded-lg shadow-sm border border-slate-300 cursor-pointer hover:border-slate-500 transition-colors group';
                 div.onclick = () => {
                     player.jumpTo(note.sentenceIndex);
-                    // モバイルの場合はパネルを閉じてテキストを見せる
                     if (window.innerWidth < 768) this.closeRightPanel();
                 };
 
@@ -1722,22 +1719,22 @@
                 
                 const totalSentences = state.currentBook.sentences ? state.currentBook.sentences.length : state.currentBook.totalSentences;
                 const badge = document.createElement('span');
-                badge.className = 'text-[10px] font-medium bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded';
+                badge.className = 'text-[10px] font-medium bg-slate-200 text-slate-800 px-1.5 py-0.5 rounded border border-slate-300';
                 badge.innerHTML = `<i data-lucide="map-pin" class="w-3 h-3 inline mr-0.5"></i> ${Math.floor((note.sentenceIndex / totalSentences)*100)}% 地点`;
                 
                 const date = document.createElement('span');
-                date.className = 'text-[10px] text-slate-400';
+                date.className = 'text-[10px] text-slate-500';
                 date.textContent = new Date(note.createdAt).toLocaleDateString();
 
                 header.appendChild(badge);
                 header.appendChild(date);
 
                 const textP = document.createElement('p');
-                textP.className = 'text-sm text-slate-800 font-medium mb-2 whitespace-pre-wrap';
+                textP.className = 'text-sm text-slate-900 font-bold mb-2 whitespace-pre-wrap';
                 textP.textContent = note.text;
 
                 const contextBox = document.createElement('div');
-                contextBox.className = 'bg-slate-50 p-2 rounded text-xs text-slate-500 italic line-clamp-2 border-l-2 border-slate-300';
+                contextBox.className = 'bg-slate-100 p-2 rounded text-xs text-slate-600 italic line-clamp-2 border-l-2 border-slate-400';
                 contextBox.textContent = note.context;
 
                 div.appendChild(header);
@@ -1770,13 +1767,29 @@
                 }
             });
         },
+        updateStoryboardToggleBtn() {
+            const btn = document.getElementById('btn-toggle-storyboard');
+            const badge = document.getElementById('storyboard-status-badge');
+            if (!btn || !badge) return;
+            
+            if (state.settings.storyboardEnabled) {
+                btn.classList.add('text-blue-600', 'bg-blue-50');
+                btn.classList.remove('text-slate-500');
+                badge.classList.add('bg-blue-500');
+                badge.classList.remove('bg-slate-300');
+            } else {
+                btn.classList.remove('text-blue-600', 'bg-blue-50');
+                btn.classList.add('text-slate-500');
+                badge.classList.remove('bg-blue-500');
+                badge.classList.add('bg-slate-300');
+            }
+        },
         async showStoryboard(index) {
             const container = document.getElementById('storyboard-container');
             const imgEl = document.getElementById('storyboard-image');
             const loadingEl = document.getElementById('storyboard-loading');
             const textContentEl = document.getElementById('storyboard-text-content');
             
-            // 現在読み上げているブロックのテキスト（約250文字）を字幕レイヤーにセット
             const chunk = player.getChunk(index);
             if (chunk) {
                 textContentEl.textContent = chunk.text;
@@ -1825,21 +1838,17 @@
             const container = document.getElementById('storyboard-container');
             container.classList.add('hidden');
             
-            // 非表示時は字幕レイヤーも隠す
             const overlay = document.getElementById('storyboard-text-overlay');
             overlay.classList.add('hidden', 'opacity-0');
             
-            // 手動でバツボタンを押して閉じた場合は、単発モードを解除し、紙芝居モード自体もオフにする
             state.isSingleImageMode = false;
             if (e && state.settings.storyboardEnabled) {
                 state.settings.storyboardEnabled = false;
-                const cb = document.getElementById('setting-storyboard-enabled');
-                if (cb) cb.checked = false;
                 localStorage.setItem('ab_storyboard_enabled', 'false');
+                this.updateStoryboardToggleBtn();
             }
         },
         toggleStoryboardText() {
-            // タップで字幕の表示/非表示を切り替える
             const overlay = document.getElementById('storyboard-text-overlay');
             if (overlay.classList.contains('hidden')) {
                 overlay.classList.remove('hidden');
@@ -1856,23 +1865,15 @@
     // ==========================================
     const app = {
         async init() {
-            // --- 修正: Gemini Canvas環境の確実な自動判定とボイス設定 ---
-            // Canvas特有の隠し変数（__app_id）やサンドボックス環境を検知するように条件を強化
             const isCanvasEnv = (typeof __app_id !== 'undefined') || window.location.hostname === '' || window.location.hostname.includes('googleusercontent.com'); 
             const savedVoice = localStorage.getItem('ab_voice_name');
             
             if (isCanvasEnv && !savedVoice) {
-                // 自動的に Zubenelgenubi を設定
                 localStorage.setItem('ab_voice_name', 'gemini-Zubenelgenubi');
-                console.log("Canvas環境を検知: 音声を Zubenelgenubi に自動設定しました。");
             }
-            // --------------------------------------------------
 
-            // 自動設定をUIに正しく反映させるため、ui.init() の呼び出し位置を判定の【後】に移動
             ui.init();
 
-            // 設定の初期反映
-            document.getElementById('setting-storyboard-enabled').checked = state.settings.storyboardEnabled;
             document.getElementById('setting-storyboard-aspect').value = state.settings.storyboardAspect;
             const styleSelect = document.getElementById('setting-storyboard-style');
             if (styleSelect) styleSelect.value = state.settings.storyboardStyle;
@@ -1900,13 +1901,13 @@
             if (savedFont === 'serif') textContainer.classList.add('font-serif-custom');
             if (savedLayout === 'vertical') document.getElementById('text-view-container').classList.add('writing-mode-vertical');
             textContainer.classList.add(`font-${savedWeight}`);
-            this.updateFontSize(); // 追加: 文字サイズの初期適用
+            this.updateFontSize(); 
             
             try {
                 if (state.settings.gasUrl) {
                     await ui.loadInitialData();
                 } else {
-                    document.getElementById('text-content').innerHTML = '<div class="h-full flex flex-col items-center justify-center text-slate-400 mt-20 gap-3"><i data-lucide="cloud-off" class="w-12 h-12 opacity-50"></i><span>クラウド保存用のGAS URLが設定されていません。</span><button onclick="ui.toggleRightPanel(\'settings\')" class="px-4 py-2 bg-blue-100 text-blue-600 rounded hover:bg-blue-200 transition-colors">設定を開く</button></div>';
+                    document.getElementById('text-content').innerHTML = '<div class="h-full flex flex-col items-center justify-center text-slate-500 mt-20 gap-3"><i data-lucide="cloud-off" class="w-12 h-12 opacity-50"></i><span>クラウド保存用のGAS URLが設定されていません。</span><button onclick="ui.toggleRightPanel(\'settings\')" class="px-4 py-2 bg-slate-200 text-slate-800 rounded border border-slate-400 hover:bg-slate-300 transition-colors">設定を開く</button></div>';
                     lucide.createIcons();
                 }
             } catch (e) {
@@ -1915,12 +1916,25 @@
             }
         },
 
+        toggleStoryboard() {
+            state.settings.storyboardEnabled = !state.settings.storyboardEnabled;
+            localStorage.setItem('ab_storyboard_enabled', state.settings.storyboardEnabled);
+            ui.updateStoryboardToggleBtn();
+            
+            player.clearCache();
+            if (!state.settings.storyboardEnabled) {
+                ui.hideStoryboard();
+            } else if (player.isPlaying) {
+                player.speakCurrent(); 
+            }
+        },
+
         async generateSingleImage() {
             const book = state.currentBook;
             if (!book) { alert("本を選択してください。"); return; }
             
             const index = book.currentIndex;
-            state.isSingleImageMode = true; // 単発モードフラグをON
+            state.isSingleImageMode = true; 
             
             const container = document.getElementById('storyboard-container');
             const imgEl = document.getElementById('storyboard-image');
@@ -1939,7 +1953,6 @@
                 const base64 = await geminiImagen.generateImage(prompt, state.settings.storyboardAspect);
                 imgEl.src = base64;
                 imgEl.style.opacity = 1;
-                // 修正: 生成した画像をキャッシュに保存し、再生成の無駄を省く
                 player.imageCache.set(index, base64);
             } catch (error) {
                 console.error(error);
@@ -1954,28 +1967,22 @@
             const book = state.books.find(b => b.id === bookId);
             if (!book) return;
 
-            // 以前の再生を停止
             player.pause();
 
-            // ダウンロード中のUI表示
             const textContainer = document.getElementById('text-content');
-            textContainer.innerHTML = '<div class="h-full flex flex-col items-center justify-center text-slate-400 mt-20"><div class="loader mb-4"></div>本文をクラウドからダウンロードしています...</div>';
+            textContainer.innerHTML = '<div class="h-full flex flex-col items-center justify-center text-slate-500 mt-20"><div class="loader mb-4"></div>本文をクラウドからダウンロードしています...</div>';
             document.getElementById('header-book-title').textContent = "読み込み中...";
 
             try {
-                // 本文をクラウド(Drive)からダウンロード
                 const rawText = await cloudManager.getBookText(book.fileId);
-                // 文に分割
                 const sentences = rawText.match(/[^。！？\n]+[。！？\n]*/g) || [rawText];
                 book.sentences = sentences.filter(s => s.trim().length > 0);
 
                 state.currentBook = book;
                 ui.updateMediaSession(book.title);
                 
-                // メモをロード
                 state.notes = await cloudManager.getNotes(bookId);
 
-                // UI更新
                 ui.renderBookList();
                 ui.renderTextWindow();
                 ui.updateProgressBar();
@@ -1983,16 +1990,14 @@
                 
                 if (state.activePanel === 'notes') ui.renderNotes();
 
-                // モバイルの場合、本を選択したらサイドバーを閉じる
                 if (window.innerWidth < 768) {
                     document.getElementById('sidebar').classList.add('-translate-x-full');
                 }
                 
-                // チャット履歴クリア (本が変わったため)
-                document.getElementById('chat-messages').innerHTML = '<div class="text-center text-xs text-slate-400 my-4">AIアシスタントに要約や質問ができます</div>';
+                document.getElementById('chat-messages').innerHTML = '<div class="text-center text-xs text-slate-500 my-4">AIアシスタントに要約や質問ができます</div>';
             } catch(e) {
                 console.error("Text download failed", e);
-                textContainer.innerHTML = '<div class="text-red-500 text-center mt-20">本文のダウンロードに失敗しました。</div>';
+                textContainer.innerHTML = '<div class="text-red-600 font-bold text-center mt-20">本文のダウンロードに失敗しました。</div>';
                 document.getElementById('header-book-title').textContent = "エラー";
             }
         },
@@ -2008,34 +2013,29 @@
             if (!title) { alert("タイトルを入力してください。"); return; }
             if (!text) { alert("テキストを入力してください。"); return; }
 
-            // UIをローディング状態に
             document.getElementById('processing-indicator').classList.remove('hidden');
             document.querySelectorAll('#add-book-modal button').forEach(b => b.disabled = true);
 
             try {
-                // 日本語の文単位で分割する正規表現 (改行も区切りとする)
                 const sentences = text.match(/[^。！？\n]+[。！？\n]*/g) || [text];
                 const cleanSentences = sentences.filter(s => s.trim().length > 0);
 
                 const newBook = {
                     id: crypto.randomUUID(),
                     title: title,
-                    text: text, // クラウドに送るためのテキスト全体
+                    text: text, 
                     currentIndex: 0,
                     totalSentences: cleanSentences.length,
                     createdAt: Date.now(),
                     updatedAt: Date.now()
                 };
 
-                // クラウド(GAS)に保存 (Driveにテキスト、SSにリスト)
                 const savedBook = await cloudManager.addBook(newBook);
                 
-                // ローカル状態に追加
-                savedBook.sentences = cleanSentences; // ローカル用にセットしておく
-                state.books.unshift(savedBook); // リストの先頭に追加
+                savedBook.sentences = cleanSentences; 
+                state.books.unshift(savedBook); 
                 state.books.sort((a, b) => b.updatedAt - a.updatedAt);
                 
-                // リセット
                 titleInput.value = '';
                 textInput.value = '';
                 ui.closeModal('add-book-modal');
@@ -2113,7 +2113,6 @@
             localStorage.setItem('ab_layout', layout);
         },
         updateStoryboardSettings() {
-            state.settings.storyboardEnabled = document.getElementById('setting-storyboard-enabled').checked;
             state.settings.storyboardAspect = document.getElementById('setting-storyboard-aspect').value;
             
             const styleSelect = document.getElementById('setting-storyboard-style');
@@ -2128,15 +2127,13 @@
                 localStorage.setItem('ab_storyboard_model', state.settings.storyboardModel);
             }
 
-            localStorage.setItem('ab_storyboard_enabled', state.settings.storyboardEnabled);
             localStorage.setItem('ab_storyboard_aspect', state.settings.storyboardAspect);
             
-            // プリロードキャッシュをクリアして新しいスタイルで生成し直す
             player.clearCache();
             if (!state.settings.storyboardEnabled) {
                 ui.hideStoryboard();
             } else if (player.isPlaying) {
-                player.speakCurrent(); // 即座に再描画
+                player.speakCurrent(); 
             }
         },
 
@@ -2159,12 +2156,10 @@
             try {
                 await cloudManager.saveNote(note);
                 state.notes.push(note);
-                // ソート
                 state.notes.sort((a, b) => a.sentenceIndex - b.sentenceIndex);
                 
                 ui.closeModal('add-note-modal');
                 
-                // メモパネルが開いていれば更新、開いていなければ開く
                 if (state.activePanel !== 'notes') {
                     ui.toggleRightPanel('notes');
                 } else {
@@ -2196,7 +2191,6 @@
             app.updateFontWeight();
             app.updateStoryboardSettings();
             
-            // 初めてURLが設定された場合、データをロードする
             if (!oldUrl && gasUrl) {
                 ui.loadInitialData();
             }
@@ -2210,10 +2204,10 @@
             const btn = document.querySelector('#panel-settings button');
             const originalText = btn.textContent;
             btn.textContent = "保存しました ✓";
-            btn.classList.add('bg-green-600');
+            btn.classList.add('bg-slate-600');
             setTimeout(() => {
                 btn.textContent = originalText;
-                btn.classList.remove('bg-green-600');
+                btn.classList.remove('bg-slate-600');
             }, 2000);
         },
         
@@ -2244,7 +2238,6 @@
     window.addEventListener('DOMContentLoaded', () => {
         app.init();
 
-        // PWA用のService Workerを登録
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
                 navigator.serviceWorker.register('./sw.js')
