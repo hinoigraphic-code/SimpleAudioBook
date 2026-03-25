@@ -1,10 +1,9 @@
 <!DOCTYPE html>
-<html lang="ja" class="dark">
+<html lang="ja" class="light">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>AI オーディオブックプレイヤー</title>
-    <!-- PWA対応のための設定（強力版） -->
     <link rel="manifest" href="./manifest.json">
     <meta name="theme-color" content="#000000">
     <meta name="mobile-web-app-capable" content="yes">
@@ -12,7 +11,6 @@
     <meta name="application-name" content="AudioBook">
     <meta name="apple-mobile-web-app-title" content="AudioBook">
     <link rel="apple-touch-icon" href="./icon-192x192.png">
-    <!-- PWA設定ここまで -->
     <script src="https://cdn.tailwindcss.com?plugins=typography"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
@@ -108,6 +106,46 @@
         }
         
         body { background-color: var(--bg); color: var(--text); }
+
+        /* =========================================
+           E-inkモード専用 強制上書きスタイル
+           ========================================= */
+        html.e-ink {
+            --bg: #ffffff !important; 
+            --text: #000000 !important; 
+            --text-sub: #000000 !important; 
+            --panel: #ffffff !important; 
+            --border: #000000 !important; 
+            --accent: #000000 !important; 
+            --hover-bg: #ffffff !important; 
+            --highlight-bg: transparent !important; 
+        }
+        html.e-ink body { background-color: var(--bg); color: var(--text); }
+        html.e-ink * {
+            transition: none !important;
+            animation: none !important;
+            box-shadow: none !important;
+        }
+        /* E-ink時のハイライトは背景色を使わず、太字＋下線で表現（チラつき防止） */
+        html.e-ink .sentence-highlight {
+            background-color: transparent !important;
+            color: #000000 !important;
+            font-weight: 900 !important;
+            border-bottom: 2px dashed #000000;
+            border-radius: 0;
+        }
+        /* E-ink時のローダーを静的アイコンに */
+        html.e-ink .loader {
+            border: none !important;
+            width: auto !important; height: auto !important;
+            animation: none !important;
+        }
+        html.e-ink .loader::after {
+            content: "⏳";
+            font-size: 1.2rem;
+            display: inline-block;
+        }
+        /* ========================================= */
         
         /* 独自テーマ対応の追加クラス */
         .sentence-hover:hover { background-color: var(--hover-bg); }
@@ -165,7 +203,6 @@
 </head>
 <body class="bg-slate-50 text-slate-800 h-[100dvh] flex overflow-hidden font-sans text-sm md:text-base dark:bg-slate-900 dark:text-slate-100">
 
-    <!-- サイドバー: 本のリスト -->
     <aside id="sidebar" class="w-64 shrink-0 bg-white border-r border-slate-200 flex flex-col z-30 transition-all duration-300 absolute md:relative h-full -translate-x-full md:translate-x-0">
         <div class="p-4 border-b border-slate-200 flex justify-between items-center bg-slate-100">
             <h1 class="font-bold text-lg flex items-center gap-2 text-slate-700">
@@ -181,13 +218,10 @@
             </button>
         </div>
         <div class="flex-1 overflow-y-auto px-2 pb-4" id="book-list-container">
-            <!-- 本のリストがここにレンダリングされる -->
-        </div>
+            </div>
     </aside>
 
-    <!-- メインコンテンツ -->
     <main id="main-content" class="flex-1 flex flex-col relative w-full overflow-hidden">
-        <!-- トップヘッダ -->
         <header id="main-header" class="h-14 bg-white border-b border-slate-200 flex items-center justify-between px-4 shrink-0">
             <div class="flex items-center gap-3 truncate">
                 <button id="open-sidebar-btn" class="p-2 -ml-2 hover:bg-slate-100 rounded text-slate-600 transition-colors">
@@ -217,53 +251,43 @@
                     <i data-lucide="settings" class="w-5 h-5"></i>
                 </button>
             </div>
-            <!-- 検索パネル -->
             <div id="search-panel" class="absolute top-14 left-0 w-full bg-white border-b border-slate-200 p-2 hidden flex items-center gap-2 z-30">
                 <input type="text" id="search-input" class="flex-1 border border-slate-300 rounded px-3 py-1.5 text-sm" placeholder="検索..." onkeyup="if(event.key==='Enter') ui.search()">
                 <button onclick="ui.search()" class="text-sm bg-slate-100 px-3 py-1.5 rounded hover:bg-slate-200">検索</button>
             </div>
         </header>
 
-        <!-- 画像表示エリア (紙芝居モード) -->
         <div id="storyboard-container" class="absolute inset-0 z-20 top-14 bottom-[88px] bg-slate-900 flex items-center justify-center overflow-hidden hidden transition-opacity duration-500 cursor-pointer" onclick="ui.toggleStoryboardText()">
             <img id="storyboard-image" class="w-full h-full object-contain opacity-0 transition-opacity duration-1000" src="" alt="情景画像">
             <div id="storyboard-loading" class="absolute flex flex-col items-center justify-center text-white/70 hidden">
                 <div class="loader mb-2 !border-white/20 !border-t-white"></div>
                 <span class="text-xs font-medium bg-black/50 px-3 py-1 rounded-full">情景を描写中...</span>
             </div>
-            <!-- テキストオーバーレイ (字幕) -->
             <div id="storyboard-text-overlay" class="absolute inset-x-0 bottom-0 p-6 pt-20 bg-gradient-to-t from-black/90 to-transparent text-white text-base md:text-lg leading-loose opacity-0 transition-opacity duration-300 pointer-events-none hidden">
                 <p id="storyboard-text-content" class="max-w-3xl mx-auto drop-shadow-md font-serif-custom"></p>
             </div>
-            <!-- 閉じるボタン -->
             <button onclick="ui.hideStoryboard(event)" class="absolute top-4 right-4 bg-black/50 hover:bg-black/70 text-white p-2 rounded-full z-50 transition-colors pointer-events-auto">
                 <i data-lucide="x" class="w-6 h-6"></i>
             </button>
         </div>
 
-        <!-- テキスト表示エリア -->
         <div id="text-view-container" class="flex-1 overflow-y-auto p-4 md:p-8 relative scroll-smooth bg-slate-50 shadow-inner z-10 transition-colors duration-500">
             <div id="text-content" class="max-w-3xl mx-auto pb-32">
-                <!-- テキストがここにレンダリングされる -->
                 <div class="h-full flex items-center justify-center text-slate-400 mt-20">
                     左のメニューから本を選択するか、新しく追加してください。
                 </div>
             </div>
         </div>
 
-        <!-- 読書モード解除ボタン (フローティング) -->
         <button id="exit-reading-btn" onclick="ui.toggleReadingMode()" class="hidden absolute bottom-6 right-6 bg-slate-800/40 hover:bg-slate-800/80 text-white p-3 rounded-full shadow-lg backdrop-blur-sm z-40 transition-colors">
             <i data-lucide="minimize" class="w-6 h-6"></i>
         </button>
 
-        <!-- プレイヤーコントロール -->
         <div id="player-control-panel" class="bg-white border-t border-slate-200 px-4 py-3 shrink-0 flex flex-col gap-2 relative z-10">
-            <!-- テキスト量・時間情報 -->
             <div class="flex justify-between px-1 -mb-1 text-[10px] text-slate-500 tracking-wider">
                 <span id="time-stats">00:00 / 00:00</span>
                 <span id="text-stats">0 / 0 文字</span>
             </div>
-            <!-- プログレスバー -->
             <div class="flex items-center gap-3">
                 <span id="progress-text" class="text-xs text-slate-500 w-12 text-right">0%</span>
                 <input type="range" id="progress-slider" min="0" max="100" value="0" class="flex-1 h-2 bg-slate-200 rounded-full cursor-pointer accent-blue-600 appearance-none" oninput="player.seekBySlider(this.value)">
@@ -310,9 +334,7 @@
         </div>
     </main>
 
-    <!-- 右パネル (チャット、メモ、設定) -->
     <aside id="right-panel" class="w-80 md:w-96 bg-white border-l border-slate-200 flex flex-col absolute md:relative right-0 h-full z-10 transition-transform transform translate-x-full md:translate-x-0 hidden shadow-xl md:shadow-none border-t md:border-t-0">
-        <!-- パネルヘッダ -->
         <div class="h-14 border-b border-slate-200 flex items-center justify-between px-4 bg-slate-50 shrink-0">
             <h3 id="panel-title" class="font-bold text-slate-700 flex items-center gap-2">
                 <i data-lucide="info" class="w-4 h-4"></i> パネル
@@ -322,7 +344,6 @@
             </button>
         </div>
 
-        <!-- パネルコンテンツ: チャット -->
         <div id="panel-chat" class="flex-1 flex flex-col hidden overflow-hidden">
             <div class="p-3 border-b border-slate-200 bg-slate-100 flex items-center justify-between text-xs shrink-0">
                 <label class="flex items-center gap-2 cursor-pointer text-slate-700 font-medium" title="現在読んでいる場所までをAIの知識とします">
@@ -333,8 +354,7 @@
             </div>
             <div id="chat-messages" class="flex-1 overflow-y-auto p-4 space-y-4 bg-slate-50">
                 <div class="text-center text-xs text-slate-400 my-4">AIアシスタントに要約や質問ができます</div>
-                <!-- メッセージがここに入る -->
-            </div>
+                </div>
             <div class="p-3 border-t border-slate-200 bg-white shrink-0">
                 <div class="flex items-center justify-between mb-1 px-2">
                     <span id="chat-voice-timer" class="text-xs text-red-500 font-medium hidden">00:00</span>
@@ -351,16 +371,25 @@
             </div>
         </div>
 
-        <!-- パネルコンテンツ: メモ -->
         <div id="panel-notes" class="flex-1 flex flex-col hidden overflow-hidden">
             <div id="notes-list" class="flex-1 overflow-y-auto p-4 space-y-3 bg-slate-50">
-                <!-- メモ一覧がここに入る -->
-            </div>
+                </div>
         </div>
 
-        <!-- パネルコンテンツ: 設定 -->
         <div id="panel-settings" class="flex-1 flex flex-col hidden overflow-y-auto p-5 bg-slate-50">
             <div class="space-y-6">
+
+                <div class="bg-slate-100 p-3 rounded border border-slate-300">
+                    <label class="block text-sm font-bold text-slate-800 mb-2 border-b border-slate-300 pb-1">📱 デバイス最適化</label>
+                    <label class="flex items-start gap-2 cursor-pointer text-sm text-slate-700">
+                        <input type="checkbox" id="setting-eink-mode" class="mt-1 w-4 h-4 text-blue-600 rounded" onchange="app.updateEinkMode(this.checked)">
+                        <div>
+                            <span class="font-medium">E-ink モード</span>
+                            <p class="text-[10px] text-slate-500 mt-1 leading-tight">白黒表示・アニメーション無効化・ページ送りスクロールを適用し、電子ペーパー端末のバッテリーと画面チラつきを抑えます。</p>
+                        </div>
+                    </label>
+                </div>
+
                 <div>
                     <label class="block text-sm font-medium text-slate-700 mb-1">Gemini API キー</label>
                     <input type="password" id="setting-api-key" class="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500" placeholder="AI機能を利用するには入力">
@@ -463,7 +492,6 @@
         </div>
     </aside>
 
-    <!-- モーダル: 本の追加 -->
     <div id="add-book-modal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center hidden opacity-0 transition-opacity">
         <div class="bg-white rounded-lg shadow-xl w-full max-w-2xl mx-4 flex flex-col max-h-[90vh] transform scale-95 transition-transform" id="add-book-modal-content">
             <div class="p-4 border-b border-slate-200 flex justify-between items-center bg-slate-50 rounded-t-lg">
@@ -493,7 +521,6 @@
         </div>
     </div>
 
-    <!-- モーダル: メモの追加 -->
     <div id="add-note-modal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center hidden opacity-0 transition-opacity">
         <div class="bg-white rounded-lg shadow-xl w-full max-w-lg mx-4 flex flex-col transform scale-95 transition-transform" id="add-note-modal-content">
             <div class="p-4 border-b border-slate-200 flex justify-between items-center bg-slate-100 rounded-t-lg">
@@ -547,61 +574,180 @@
             apiKey: localStorage.getItem('ab_api_key') || apiKey,
             model: localStorage.getItem('ab_model') || "gemini-2.5-flash",
             font: localStorage.getItem('ab_font') || 'serif',
-            fontWeight: localStorage.getItem('ab_font_weight') || 'normal',
-            fontSize: localStorage.getItem('ab_font_size') || '1.0',
+            fontWeight: localStorage.getItem('ab_font_weight') || 'bold',
+            fontSize: localStorage.getItem('ab_font_size') || '1.1',
             gasUrl: localStorage.getItem('ab_gas_url') || DEFAULT_GAS_URL,
             storyboardEnabled: localStorage.getItem('ab_storyboard_enabled') === 'true',
             storyboardModel: localStorage.getItem('ab_storyboard_model') || 'gemini-2.5-flash-image-preview',
             storyboardAspect: localStorage.getItem('ab_storyboard_aspect') || '9:16',
-            storyboardStyle: localStorage.getItem('ab_storyboard_style') || 'photorealistic' // デフォルトを完全実写調に変更
+            storyboardStyle: localStorage.getItem('ab_storyboard_style') || 'photorealistic', // デフォルトを完全実写調に変更
+            einkMode: localStorage.getItem('ab_eink_mode') === 'true' // ★ 追加: E-inkモード状態
         },
         mediaSessionInitialized: false
     };
 
     // ==========================================
-    // クラウドストレージ管理 (GAS)
+    // ローカルデータベース (IndexedDB) 管理
+    // ==========================================
+    const localStore = {
+        db: null,
+        async init() {
+            return new Promise((resolve, reject) => {
+                const request = indexedDB.open('AudioBookDB', 1);
+                request.onupgradeneeded = (e) => {
+                    const db = e.target.result;
+                    if (!db.objectStoreNames.contains('books')) db.createObjectStore('books', { keyPath: 'id' });
+                    if (!db.objectStoreNames.contains('syncQueue')) db.createObjectStore('syncQueue', { keyPath: 'id', autoIncrement: true });
+                };
+                request.onsuccess = (e) => { this.db = e.target.result; resolve(); };
+                request.onerror = (e) => { console.error("IndexedDB init error", e); resolve(); };
+            });
+        },
+        async saveBookText(id, text) {
+            if(!this.db) return;
+            return new Promise((resolve) => {
+                const tx = this.db.transaction('books', 'readwrite');
+                tx.objectStore('books').put({ id, text, timestamp: Date.now() });
+                tx.oncomplete = () => {
+                    // 古いものを削除 (最大5冊まで保持)
+                    const tx2 = this.db.transaction('books', 'readwrite');
+                    const store = tx2.objectStore('books');
+                    const req = store.getAll();
+                    req.onsuccess = () => {
+                        let books = req.result.sort((a, b) => b.timestamp - a.timestamp);
+                        if (books.length > 5) {
+                            for (let i = 5; i < books.length; i++) store.delete(books[i].id);
+                        }
+                    };
+                    resolve();
+                };
+            });
+        },
+        async getBookText(id) {
+            if(!this.db) return null;
+            return new Promise((resolve) => {
+                const tx = this.db.transaction('books', 'readonly');
+                const req = tx.objectStore('books').get(id);
+                req.onsuccess = () => resolve(req.result ? req.result.text : null);
+                req.onerror = () => resolve(null);
+            });
+        },
+        async addSyncItem(action, payload) {
+            if(!this.db) return;
+            return new Promise((resolve) => {
+                const tx = this.db.transaction('syncQueue', 'readwrite');
+                tx.objectStore('syncQueue').add({ action, payload, timestamp: Date.now() });
+                tx.oncomplete = () => resolve();
+            });
+        },
+        async getSyncItems() {
+            if(!this.db) return [];
+            return new Promise((resolve) => {
+                const tx = this.db.transaction('syncQueue', 'readonly');
+                const req = tx.objectStore('syncQueue').getAll();
+                req.onsuccess = () => resolve(req.result || []);
+                req.onerror = () => resolve([]);
+            });
+        },
+        async clearSyncItems() {
+            if(!this.db) return;
+            return new Promise((resolve) => {
+                const tx = this.db.transaction('syncQueue', 'readwrite');
+                tx.objectStore('syncQueue').clear();
+                tx.oncomplete = () => resolve();
+            });
+        }
+    };
+
+    // ==========================================
+    // クラウドストレージ管理 (GAS) と オフライン同期
     // ==========================================
     const cloudManager = {
         async callCloud(action, payload = {}) {
-            if (!state.settings.gasUrl) {
-                throw new Error("GASのURLが設定されていません。");
-            }
-            const payloadString = JSON.stringify({ action: action, payload: payload });
+            if (!state.settings.gasUrl) throw new Error("GASのURLが設定されていません。");
             
+            // オフライン時の処理（一部のアクションはキューに保存）
+            if (!navigator.onLine) {
+                if (action === 'updateBookProgress' || action === 'saveNote') {
+                    await localStore.addSyncItem(action, payload);
+                    return { status: 'offline_queued' };
+                }
+                throw new Error("現在オフラインです。通信が必要な操作は実行できません。");
+            }
+
+            const payloadString = JSON.stringify({ action: action, payload: payload });
             try {
                 const response = await fetch(state.settings.gasUrl, {
                     method: 'POST',
                     headers: { 'Content-Type': 'text/plain' },
                     body: payloadString
                 });
-                
                 const data = await response.json();
                 if (data.status === 'error') throw new Error(data.message);
                 return data;
             } catch (e) {
-                console.error("Cloud API Error:", e);
+                // 通信エラー時もキューに保存してリトライ待ちにする
+                if (action === 'updateBookProgress' || action === 'saveNote') {
+                    await localStore.addSyncItem(action, payload);
+                    return { status: 'error_queued' };
+                }
                 throw e;
+            }
+        },
+
+        async syncOfflineData() {
+            if (!navigator.onLine) return;
+            const items = await localStore.getSyncItems();
+            if (!items || items.length === 0) return;
+
+            let successCount = 0;
+            for (const item of items) {
+                try {
+                    await this.callCloud(item.action, item.payload);
+                    successCount++;
+                } catch (e) {
+                    console.error("Sync failed for item:", item, e);
+                }
+            }
+            if (successCount > 0) {
+                await localStore.clearSyncItems();
+                console.log(`${successCount}件のオフラインデータを同期しました。`);
             }
         },
 
         async getBooks() {
             try {
                 const res = await this.callCloud('getBooks');
-                return res.books ? res.books.sort((a, b) => b.updatedAt - a.updatedAt) : [];
-            } catch(e) {
-                console.warn("getBooks failed", e);
+                if (res.books) {
+                    localStorage.setItem('ab_books_cache', JSON.stringify(res.books));
+                    return res.books.sort((a, b) => b.updatedAt - a.updatedAt);
+                }
                 return [];
+            } catch(e) {
+                console.warn("オフラインのためキャッシュから本一覧を取得します");
+                const cached = localStorage.getItem('ab_books_cache');
+                return cached ? JSON.parse(cached).sort((a, b) => b.updatedAt - a.updatedAt) : [];
             }
         },
 
         async getBookText(fileId) {
+            // まずローカルのIndexedDBから取得を試みる
+            const cachedText = await localStore.getBookText(fileId);
+            if (cachedText) return cachedText;
+
+            // なければクラウドから取得
             const res = await this.callCloud('getBookText', { fileId });
-            return res.text || "";
+            const text = res.text || "";
+            // 取得したテキストをローカルにキャッシュ(最大5冊を維持)
+            if (text) await localStore.saveBookText(fileId, text);
+            return text;
         },
 
         async addBook(book) {
             const res = await this.callCloud('addBook', book);
             book.fileId = res.fileId;
+            // 新しく追加した本もキャッシュする
+            await localStore.saveBookText(book.fileId, book.text);
             delete book.text; 
             return book;
         },
@@ -617,10 +763,14 @@
         async getNotes(bookId) {
             try {
                 const res = await this.callCloud('getNotes', { bookId });
-                return res.notes ? res.notes.sort((a, b) => a.sentenceIndex - b.sentenceIndex) : [];
-            } catch(e) {
-                console.warn("getNotes failed", e);
+                if (res.notes) {
+                    localStorage.setItem(`ab_notes_cache_${bookId}`, JSON.stringify(res.notes));
+                    return res.notes.sort((a, b) => a.sentenceIndex - b.sentenceIndex);
+                }
                 return [];
+            } catch(e) {
+                const cached = localStorage.getItem(`ab_notes_cache_${bookId}`);
+                return cached ? JSON.parse(cached).sort((a, b) => a.sentenceIndex - b.sentenceIndex) : [];
             }
         },
 
@@ -787,7 +937,36 @@
         getChunk(startIndex) {
             const book = state.currentBook;
             if (!book || !book.sentences || startIndex >= book.sentences.length) return null;
-            let text = ""; let count = 0; const targetLength = 250; 
+            
+            // ★ 画面サイズから1ページに確実に収まる文字数を計算
+            const container = document.getElementById('text-view-container');
+            const contentEl = document.getElementById('text-content');
+            
+            // フォントサイズとコンテナのサイズを取得
+            const rootFontSize = parseFloat(window.getComputedStyle(document.documentElement).fontSize) || 16;
+            const fontSizePx = parseFloat(contentEl.style.fontSize || '1') * rootFontSize;
+            const lineHeightPx = fontSizePx * 1.8; // 行間の概算
+            
+            // 画面のパディングやUIの重なりを考慮して、余裕を持って幅・高さを引く（64 -> 120に変更）
+            const width = container.clientWidth - 120; 
+            const height = container.clientHeight - 120; 
+
+            let targetLength = 250; // デフォルト
+            if (width > 0 && height > 0) {
+                if (container.classList.contains('writing-mode-vertical')) {
+                    // 縦書き: 1行の文字数(height / fontSize) × 行数(width / lineHeight)
+                    targetLength = Math.floor((height / fontSizePx) * (width / lineHeightPx));
+                } else {
+                    // 横書き: 1行の文字数(width / fontSize) × 行数(height / lineHeight)
+                    targetLength = Math.floor((width / fontSizePx) * (height / lineHeightPx));
+                }
+                // 句読点による改行や文字幅のばらつきを考慮し、安全係数を0.8から0.65に下げる
+                targetLength = Math.floor(targetLength * 0.65); 
+            }
+            // 最小100字、最大2000字（API制限考慮）の範囲に収める
+            targetLength = Math.max(100, Math.min(targetLength, 2000));
+
+            let text = ""; let count = 0; 
             for (let i = startIndex; i < book.sentences.length; i++) {
                 const sentence = book.sentences[i];
                 if (!sentence || !sentence.trim().replace(/[\n\r]/g, '')) { count++; continue; }
@@ -929,8 +1108,11 @@
 
         pause() {
             this.isPlaying = false;
-            this.synth.cancel();
-            if (this.geminiAudio) { this.geminiAudio.pause(); this.geminiAudio = null; }
+            this.synth.pause(); // cancel()ではなくpause()にして標準音声も一時停止
+            if (this.geminiAudio) { 
+                this.geminiAudio.pause(); 
+                // ここにあった this.geminiAudio = null; を削除し、音声を保持したままにします
+            }
             this.silentAudio.pause();
             if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'paused';
             ui.updatePlayerControls();
@@ -938,15 +1120,32 @@
 
         async speakCurrent() {
             if (!this.isPlaying) return;
-            this.synth.cancel();
-            if (this.geminiAudio) { this.geminiAudio.pause(); this.geminiAudio = null; }
 
             const book = state.currentBook;
             if (!book.sentences) return;
 
-            ui.renderTextWindow();
             const voiceNameId = localStorage.getItem('ab_voice_name');
             const isGeminiTTS = voiceNameId && voiceNameId.startsWith('gemini-');
+
+            // ★ 追加: 一時停止からの再開処理
+            if (isGeminiTTS && this.geminiAudio && this.geminiAudio.paused && !this.geminiAudio.ended) {
+                // 現在のインデックスが保持している音声の開始位置と同じなら続きから再生
+                if (this.currentAudioStartIndex === book.currentIndex) {
+                    this.geminiAudio.play();
+                    ui.renderTextWindow();
+                    return;
+                }
+            } else if (!isGeminiTTS && this.synth.paused) {
+                this.synth.resume();
+                ui.renderTextWindow();
+                return;
+            }
+
+            this.synth.cancel();
+            if (this.geminiAudio) { this.geminiAudio.pause(); this.geminiAudio = null; }
+            this.currentAudioStartIndex = book.currentIndex; // ★ 開始インデックスを記録
+
+            ui.renderTextWindow();
 
             if (state.isSingleImageMode) {
                 // 単発画像モードの時は何もしない
@@ -957,6 +1156,11 @@
             }
 
             if (isGeminiTTS) {
+                if (!navigator.onLine) {
+                    ui.addChatMessage("System", "オフラインのためGeminiの高音質音声は使用できません。設定からブラウザ標準音声に切り替えてください。", true);
+                    this.pause();
+                    return;
+                }
                 const geminiVoice = geminiTTS.voices.find(v => v.id === voiceNameId);
                 const currentIndex = book.currentIndex;
                 const chunk = this.getChunk(currentIndex);
@@ -1075,6 +1279,10 @@
     const ai = {
         async submitChat(e) {
             e.preventDefault();
+            if (!navigator.onLine) {
+                ui.addChatMessage("System", "オフラインのため、AIアシスタントは現在使用できません。", true);
+                return;
+            }
             const input = document.getElementById('chat-input');
             const text = input.value.trim();
             if (!text || !state.currentBook || !state.currentBook.sentences) return;
@@ -1309,6 +1517,11 @@
             document.getElementById('setting-gas-url').value = state.settings.gasUrl;
             document.getElementById('chat-model-label').textContent = state.settings.model.split('-').slice(1,3).join(' ');
 
+            // ★ E-ink モード初期化
+            const einkToggle = document.getElementById('setting-eink-mode');
+            if (einkToggle) einkToggle.checked = state.settings.einkMode;
+            if (state.settings.einkMode) document.documentElement.classList.add('e-ink');
+
             const voiceSelect = document.getElementById('voice-select');
             const updateVoices = () => {
                 let voices = window.speechSynthesis.getVoices();
@@ -1332,7 +1545,7 @@
             window.speechSynthesis.onvoiceschanged = updateVoices;
             updateVoices();
 
-            const currentTheme = localStorage.getItem('theme') || 'dark';
+            const currentTheme = localStorage.getItem('theme') || 'light';
             document.documentElement.classList.remove('light', 'sepia', 'dark');
             document.documentElement.classList.add(currentTheme);
             this.updateThemeIcons(currentTheme);
@@ -1393,7 +1606,7 @@
             lucide.createIcons();
             setTimeout(() => {
                 const el = document.getElementById('current-sentence');
-                if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                if (el) el.scrollIntoView({ behavior: state.settings.einkMode ? 'auto' : 'smooth', block: 'center' }); // ★ 調整
             }, 100);
         },
 
@@ -1531,8 +1744,20 @@
                 container.appendChild(span);
             });
 
+            // ★ スクロール処理: 常にハイライト位置を中央に
             const el = document.getElementById('current-sentence');
-            if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            if (el) {
+                const scrollContainer = document.getElementById('text-view-container');
+                if (state.settings.einkMode) {
+                    // E-inkモード: CSSのスムーズスクロールを強制的に切り、パッパッと切り替える
+                    scrollContainer.style.scrollBehavior = 'auto';
+                    el.scrollIntoView({ behavior: 'auto', block: 'center', inline: 'center' });
+                } else {
+                    // 通常モード: スムーズスクロールを有効にする
+                    scrollContainer.style.scrollBehavior = 'smooth';
+                    el.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' });
+                }
+            }
         },
 
         updateProgressBar() {
@@ -1761,7 +1986,7 @@
             const spans = document.querySelectorAll('.sentence-span');
             spans.forEach((span, index) => {
                 if (span.textContent.toLowerCase().includes(query)) {
-                    span.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    span.scrollIntoView({ behavior: state.settings.einkMode ? 'auto' : 'smooth', block: 'center' }); // ★ 調整
                     player.jumpTo(index);
                     return false;
                 }
@@ -1914,6 +2139,18 @@
                 console.error("Initialization failed:", e);
                 alert("クラウドとの通信に失敗しました。URLが正しいか確認してください。");
             }
+        },
+
+        // ★ 追加: E-ink モードの切り替え処理
+        updateEinkMode(isEink) {
+            state.settings.einkMode = isEink;
+            localStorage.setItem('ab_eink_mode', isEink);
+            if (isEink) {
+                document.documentElement.classList.add('e-ink');
+            } else {
+                document.documentElement.classList.remove('e-ink');
+            }
+            ui.renderTextWindow(); // スクロールやハイライトを再描画
         },
 
         toggleStoryboard() {
@@ -2235,8 +2472,15 @@
     // ==========================================
     // 起動
     // ==========================================
-    window.addEventListener('DOMContentLoaded', () => {
+    window.addEventListener('DOMContentLoaded', async () => {
+        await localStore.init(); // DBを初期化
         app.init();
+
+        // ネットワークがオンラインに復帰した時に同期を実行
+        window.addEventListener('online', async () => {
+            ui.addChatMessage("System", "オンラインに復帰しました。オフライン時のデータを同期します。", true);
+            await cloudManager.syncOfflineData();
+        });
 
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
